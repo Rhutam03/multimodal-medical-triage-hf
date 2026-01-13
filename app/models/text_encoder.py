@@ -1,21 +1,18 @@
+import torch
 import torch.nn as nn
-from transformers import DistilBertModel
 
 class TextEncoder(nn.Module):
-    def __init__(self):
+    def __init__(self, vocab_size=1000, output_dim=128):
         super().__init__()
+        self.embedding = nn.Embedding(vocab_size, output_dim)
+        self.pool = nn.AdaptiveAvgPool1d(1)
 
-        self.bert = DistilBertModel.from_pretrained(
-            "distilbert-base-uncased"
-        )
+    def forward(self, x):
+        if x is None:
+            return None
 
-        # Freeze BERT to reduce memory
-        for param in self.bert.parameters():
-            param.requires_grad = False
-
-    def forward(self, input_ids, attention_mask):
-        output = self.bert(
-            input_ids=input_ids,
-            attention_mask=attention_mask
-        )
-        return output.last_hidden_state[:, 0, :]
+        # x: (batch, seq_len)
+        emb = self.embedding(x)          # (batch, seq_len, dim)
+        emb = emb.permute(0, 2, 1)        # (batch, dim, seq_len)
+        pooled = self.pool(emb).squeeze(-1)
+        return pooled

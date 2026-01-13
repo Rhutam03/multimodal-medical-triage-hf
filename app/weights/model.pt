@@ -1,0 +1,9 @@
+python3 - <<EOF
+import torch
+dummy = {
+    "note": "dummy weights for deployment test",
+    "version": 1
+}
+torch.save(dummy, "app/weights/model_weights.pth")
+print("Saved model_weights.pth")
+EOF
