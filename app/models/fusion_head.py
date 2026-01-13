@@ -1,9 +1,10 @@
+import torch
 import torch.nn as nn
 
 class FusionHead(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, input_dim=256, num_classes=3):
         super().__init__()
-        self.fc = nn.Linear(768 + 512, num_classes)
+        self.classifier = nn.Linear(input_dim, num_classes)
 
     def forward(self, x):
-        return self.fc(x)
+        return self.classifier(x)

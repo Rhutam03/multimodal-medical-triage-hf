@@ -1,36 +1,16 @@
-import torch
-torch.set_num_threads(1)
-from fastapi import FastAPI, UploadFile, File, Form
-import shutil
-from .core.inference import predict
-from fastapi import FastAPI
-import torch
+import gradio as gr
+from core.inference import predict
 
-torch.set_num_threads(1)
-
-app = FastAPI(
-    title="Multimodal Medical Triage API",
-    root_path="/proxy/7860",
-    docs_url="/docs",
-    openapi_url="/openapi.json"
+demo = gr.Interface(
+    fn=predict,
+    inputs=[
+        gr.Image(type="pil", label="Medical Image (optional)"),
+        gr.Textbox(label="Medical Description (optional)")
+    ],
+    outputs=gr.Text(label="Triage Result"),
+    title="Multimodal Medical Triage System",
+    description="Demo system for multimodal medical triage (image + text)."
 )
 
-
-
-@app.get("/")
-def root():
-    return {"status": "ok", "message": "App running"}
-
-@app.post("/predict")
-async def predict_api(
-    image: UploadFile = File(...),
-    text: str = Form(...)
-):
-    image_path = f"/tmp/{image.filename}"
-
-    with open(image_path, "wb") as f:
-        shutil.copyfileobj(image.file, f)
-
-    triage_level = predict(image_path, text)
-
-    return {"triage_level": int(triage_level)}
+if __name__ == "__main__":
+    demo.launch()
