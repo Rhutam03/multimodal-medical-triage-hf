@@ -1,7 +1,7 @@
-torch
+gradio>=3.50
+torch>=2.0
 torchvision
-transformers
-fastapi
-uvicorn
+transformers>=4.36
 pillow
-python-multipart
+numpy
+scikit-learn
