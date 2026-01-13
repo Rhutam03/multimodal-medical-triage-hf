@@ -2,9 +2,14 @@ import torch
 import torch.nn as nn
 
 class FusionHead(nn.Module):
-    def __init__(self, input_dim=256, num_classes=3):
+    def __init__(self):
         super().__init__()
-        self.classifier = nn.Linear(input_dim, num_classes)
+        self.classifier = nn.Sequential(
+            nn.Linear(256 + 768, 256),
+            nn.ReLU(),
+            nn.Linear(256, 3)  # low / medium / high
+        )
 
-    def forward(self, x):
-        return self.classifier(x)
+    def forward(self, img_feat, txt_feat):
+        fused = torch.cat([img_feat, txt_feat], dim=1)
+        return self.classifier(fused)

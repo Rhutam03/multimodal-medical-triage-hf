@@ -1,51 +1,26 @@
-import os
 import torch
+from app.models.image_encoder import ImageEncoder
+from app.models.text_encoder import TextEncoder
+from app.models.fusion_head import FusionHead
 
-from fusion_model import MultimodalTriageModel
-from preprocessing.image_preprocess import preprocess_image
-from preprocessing.text_preprocess import preprocess_text
+image_encoder = ImageEncoder()
+text_encoder = TextEncoder()
+fusion_head = FusionHead()
 
-DEVICE = torch.device("cpu")
 LABELS = ["Low Risk", "Medium Risk", "High Risk"]
 
-_model = None
-
-
-def get_model():
-    global _model
-
-    if _model is not None:
-        return _model
-
-    model = MultimodalTriageModel(num_classes=3)
-    model.to(DEVICE)
-    model.eval()
-
-    weights_path = os.path.join("weights", "model.pt")
-
-    if os.path.exists(weights_path) and os.path.getsize(weights_path) > 0:
-        try:
-            model.load_state_dict(
-                torch.load(weights_path, map_location=DEVICE)
-            )
-            print("✅ Model weights loaded")
-        except Exception as e:
-            print(f"⚠️ Failed to load weights: {e}")
-            print("⚠️ Using random initialization")
-
-    _model = model
-    return _model
-
-
 def predict(image, text):
-    model = get_model()
+    img_feat = torch.zeros(1, 256)
+    txt_feat = torch.zeros(1, 768)
 
-    image_tensor = preprocess_image(image)
-    text_tensor = preprocess_text(text)
+    if image is not None:
+        img_feat = image_encoder(image).unsqueeze(0)
 
-    with torch.no_grad():
-        outputs = model(image=image_tensor, text=text_tensor)
-        probs = torch.softmax(outputs, dim=1)
-        pred = probs.argmax(dim=1).item()
+    if text and text.strip():
+        txt_feat = text_encoder.encode(text)
 
-    return LABELS[pred]
+    logits = fusion_head(img_feat, txt_feat)
+    probs = torch.softmax(logits, dim=1)
+    pred = torch.argmax(probs).item()
+
+    return f"Triage Level: {LABELS[pred]} (confidence {probs[0][pred]:.2f})"
