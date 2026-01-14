@@ -1,5 +1,5 @@
 import gradio as gr
-from app.core.inference import load_model, predict
+from core.inference import load_model, predict
 
 MODEL_PATH = "app/weights/model_weights.pth"
 model = load_model(MODEL_PATH)
@@ -11,8 +11,8 @@ gr.Interface(
     fn=run,
     inputs=[
         gr.Image(type="pil", label="Medical Image"),
-        gr.Textbox(label="Medical Description")
+        gr.Textbox(label="Medical Description"),
     ],
     outputs=gr.Textbox(label="Triage Result"),
-    title="Multimodal Medical Triage System"
+    title="Multimodal Medical Triage System",
 ).launch()
