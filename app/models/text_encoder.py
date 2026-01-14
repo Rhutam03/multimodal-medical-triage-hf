@@ -1,18 +1,42 @@
 import torch
 import torch.nn as nn
+from transformers import AutoModel, AutoTokenizer
+
 
 class TextEncoder(nn.Module):
-    def __init__(self, vocab_size=1000, output_dim=128):
-        super().__init__()
-        self.embedding = nn.Embedding(vocab_size, output_dim)
-        self.pool = nn.AdaptiveAvgPool1d(1)
+    """
+    Encodes clinical text into a fixed-size embedding.
+    Output dimension = 256
+    """
 
-    def forward(self, x):
-        if x is None:
+    def __init__(self, model_name: str = "distilbert-base-uncased", output_dim: int = 256):
+        super().__init__()
+
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.encoder = AutoModel.from_pretrained(model_name)
+
+        self.projection = nn.Linear(self.encoder.config.hidden_size, output_dim)
+
+    def forward(self, text: str):
+        """
+        Args:
+            text (str): clinical description
+        Returns:
+            Tensor: shape (256,)
+        """
+        if text is None or text.strip() == "":
             return None
 
-        # x: (batch, seq_len)
-        emb = self.embedding(x)          # (batch, seq_len, dim)
-        emb = emb.permute(0, 2, 1)        # (batch, dim, seq_len)
-        pooled = self.pool(emb).squeeze(-1)
-        return pooled
+        inputs = self.tokenizer(
+            text,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=128
+        )
+
+        with torch.no_grad():
+            outputs = self.encoder(**inputs)
+            pooled = outputs.last_hidden_state[:, 0]  # CLS token
+
+        return self.projection(pooled).squeeze(0)
