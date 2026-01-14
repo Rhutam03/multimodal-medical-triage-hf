@@ -1,5 +1,5 @@
 import gradio as gr
-from app.core.inference import predict_from_inputs
+from core.inference import predict_from_inputs
 
 def run(image, text):
     return predict_from_inputs(image=image, text=text)
