@@ -1,17 +1,18 @@
 import torch
 import torch.nn as nn
 
-from models.image_encoder import ImageEncoder
-from models.text_encoder import TextEncoder
-from models.fusion_head import FusionHead
+from app.models.image_encoder import ImageEncoder
+from app.models.text_encoder import TextEncoder
+from app.models.fusion_head import FusionHead
 
 
 class MultimodalTriageModel(nn.Module):
-    def __init__(self, num_classes=3):
+    def __init__(self, num_classes: int = 3):
         super().__init__()
-        self.image_encoder = ImageEncoder(output_dim=128)
-        self.text_encoder = TextEncoder(output_dim=128)
-        self.fusion_head = FusionHead(input_dim=256, num_classes=num_classes)
+
+        self.image_encoder = ImageEncoder()
+        self.text_encoder = TextEncoder()
+        self.fusion_head = FusionHead(num_classes=num_classes)
 
     def forward(self, image=None, text=None):
         features = []
@@ -30,8 +31,8 @@ class MultimodalTriageModel(nn.Module):
             raise RuntimeError("Both image and text inputs are None")
 
         if len(features) == 1:
-            fused = torch.cat([features[0], features[0]], dim=1)
+            fused = features[0]
         else:
-            fused = torch.cat(features, dim=1)
+            fused = torch.cat(features, dim=-1)  # (batch, 512)
 
         return self.fusion_head(fused)
