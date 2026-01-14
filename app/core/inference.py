@@ -1,5 +1,5 @@
 import torch
-from fusion_model import MultimodalTriageModel
+from app.fusion_model import MultimodalTriageModel
 
 LABELS = ["Low", "Medium", "High"]
 
@@ -9,7 +9,7 @@ def load_model(weights_path: str):
     model.eval()
     return model
 
-def predict(model, image=None, text=None):
+def predict_from_inputs(model, image=None, text=None):
     with torch.no_grad():
         logits = model(image=image, text=text)
         probs = torch.softmax(logits, dim=1)
