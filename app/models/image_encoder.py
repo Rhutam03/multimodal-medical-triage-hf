@@ -1,58 +1,27 @@
 import torch
 import torch.nn as nn
-from torchvision import models, transforms
-from PIL import Image
-
+from torchvision import models
 
 class ImageEncoder(nn.Module):
     """
-    Encodes a medical image into a fixed 256-dimensional feature vector
-    using a pretrained ResNet-50 backbone.
+    Image encoder that accepts TENSOR images (B, 3, 224, 224)
+    This is REQUIRED for training stability.
     """
 
-    def __init__(self):
+    def __init__(self, output_dim: int = 256):
         super().__init__()
 
-        # Load pretrained ResNet-50
         backbone = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
+        self.encoder = nn.Sequential(*list(backbone.children())[:-1])  # remove classifier
+        self.fc = nn.Linear(2048, output_dim)
 
-        # Remove the final classification layer
-        self.encoder = nn.Sequential(*list(backbone.children())[:-1])
-
-        # Projection head: 2048 -> 256
-        self.fc = nn.Linear(2048, 256)
-
-        # Image preprocessing (ImageNet standard)
-        self.preprocess = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            )
-        ])
-
-    def forward(self, image: Image.Image):
+    def forward(self, image: torch.Tensor) -> torch.Tensor:
         """
-        Args:
-            image (PIL.Image): Input medical image
-
-        Returns:
-            torch.Tensor: 256-dim image embedding
+        image: Tensor of shape (B, 3, 224, 224)
         """
+        if image.dim() == 3:
+            image = image.unsqueeze(0)  # safety
 
-        if image is None:
-            return None
-
-        # Preprocess image
-        x = self.preprocess(image).unsqueeze(0)  # (1, 3, 224, 224)
-
-        # Feature extraction (frozen backbone)
-        with torch.no_grad():
-            features = self.encoder(x)            # (1, 2048, 1, 1)
-            features = features.view(1, -1)       # (1, 2048)
-
-        # Project to 256-dim
-        features = self.fc(features)              # (1, 256)
-
-        return features.squeeze(0)                 # (256,)
+        features = self.encoder(image)          # (B, 2048, 1, 1)
+        features = features.view(features.size(0), -1)  # (B, 2048)
+        return self.fc(features)                 # (B, output_dim)
