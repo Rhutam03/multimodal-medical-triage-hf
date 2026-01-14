@@ -4,32 +4,38 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
-# IMPORTANT: relative import (because we run with -m)
-from ..fusion_model import MultimodalTriageModel
+# IMPORTANT: absolute import (because we run with -m)
+from app.fusion_model import MultimodalTriageModel
 
 # --------------------------------------------------
-# Device (CPU for HF + local safety)
+# Device (CPU for Hugging Face + local safety)
 # --------------------------------------------------
 DEVICE = torch.device("cpu")
 
 # --------------------------------------------------
-# Dummy Dataset (VALID + SAFE)
+# Dummy Multimodal Dataset (VALID + SAFE)
 # --------------------------------------------------
 class DummyMultimodalDataset(Dataset):
     """
     Generates FAKE but VALID multimodal data
-    so training really runs and produces real weights.
+    so training actually runs and produces real weights.
     """
 
     def __len__(self):
         return 50
 
     def __getitem__(self, idx):
-        image = torch.randn(3, 224, 224)          # fake image
-        input_ids = torch.randint(0, 1000, (128,))  # fake tokens
-        attention_mask = torch.ones(128)
-        label = torch.randint(0, 3, (1,)).item()   # 3 classes
-        return image, input_ids, attention_mask, label
+        # Fake image tensor (matches ImageEncoder expectations)
+        image = torch.randn(3, 224, 224)
+
+        # Fake text embedding (matches TextEncoder output size)
+        # NOTE: This avoids tokenizer/BERT complexity during training
+        text = torch.randn(256)
+
+        # 3-class triage label: 0=low, 1=medium, 2=high
+        label = torch.randint(0, 3, (1,)).item()
+
+        return image, text, label
 
 
 # --------------------------------------------------
@@ -38,40 +44,46 @@ class DummyMultimodalDataset(Dataset):
 def train():
     print("🚀 Starting training...")
 
+    # Dataset & DataLoader
     dataset = DummyMultimodalDataset()
     dataloader = DataLoader(dataset, batch_size=4, shuffle=True)
 
+    # Model
     model = MultimodalTriageModel(num_classes=3)
     model.to(DEVICE)
 
+    # Loss & Optimizer
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
     model.train()
 
+    # --------------------------------------------------
+    # Training Loop
+    # --------------------------------------------------
     for epoch in range(3):
         total_loss = 0.0
 
-        for image, input_ids, attention_mask, label in dataloader:
+        for image, text, label in dataloader:
             image = image.to(DEVICE)
-            input_ids = input_ids.to(DEVICE)
-            attention_mask = attention_mask.to(DEVICE)
+            text = text.to(DEVICE)
             label = label.to(DEVICE)
 
             optimizer.zero_grad()
 
-            outputs = model(image, input_ids, attention_mask)
-            loss = criterion(outputs, label)
+            # IMPORTANT: forward signature matches fusion_model.py
+            outputs = model(image=image, text=text)
 
+            loss = criterion(outputs, label)
             loss.backward()
             optimizer.step()
 
             total_loss += loss.item()
 
-        print(f"Epoch {epoch + 1}, Loss: {total_loss:.4f}")
+        print(f"Epoch {epoch + 1}/3 - Loss: {total_loss:.4f}")
 
     # --------------------------------------------------
-    # SAVE WEIGHTS (CRITICAL FIX)
+    # SAVE WEIGHTS (CRITICAL)
     # --------------------------------------------------
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     WEIGHTS_DIR = os.path.join(BASE_DIR, "weights")
@@ -81,7 +93,8 @@ def train():
 
     torch.save(model.state_dict(), WEIGHTS_PATH)
 
-    print("✅ model_weights.pth saved at:", WEIGHTS_PATH)
+    print("✅ Training complete.")
+    print("💾 model_weights.pth saved at:", WEIGHTS_PATH)
     print("📦 File size:", os.path.getsize(WEIGHTS_PATH), "bytes")
 
 
