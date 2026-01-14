@@ -5,3 +5,9 @@ __pycache__/
 .env
 venv/
 .DS_Store
+# Data
+data/
+
+# Model weights (local training artifacts)
+app/weights/*.pth
+app/weights/*.pt
