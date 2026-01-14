@@ -1,27 +1,17 @@
 import gradio as gr
-import torch
-
 from app.core.inference import load_model, predict
 
-model = load_model("app/weights/model_weights.pth")
+MODEL_PATH = "app/weights/model_weights.pth"
+model = load_model(MODEL_PATH)
 
-def run_inference(image, text):
-    img_tensor = None
-    txt_tensor = None
-
-    if image is not None:
-        img_tensor = torch.tensor(image).permute(2, 0, 1).float() / 255.0
-
-    if text.strip():
-        txt_tensor = torch.randn(128)
-
-    return predict(model, img_tensor, txt_tensor)
+def run(image, text):
+    return predict(model, image=image, text=text)
 
 gr.Interface(
-    fn=run_inference,
+    fn=run,
     inputs=[
-        gr.Image(type="numpy", label="Medical Image (optional)"),
-        gr.Textbox(label="Medical Description (optional)")
+        gr.Image(type="pil", label="Medical Image"),
+        gr.Textbox(label="Medical Description")
     ],
     outputs=gr.Textbox(label="Triage Result"),
     title="Multimodal Medical Triage System"
