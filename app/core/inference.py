@@ -1,5 +1,5 @@
 import torch
-from app.fusion_model import MultimodalTriageModel
+from fusion_model import MultimodalTriageModel
 
 LABELS = ["Low", "Medium", "High"]
 

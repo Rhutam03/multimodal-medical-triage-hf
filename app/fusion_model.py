@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-from app.models.image_encoder import ImageEncoder
-from app.models.text_encoder import TextEncoder
-from app.models.fusion_head import FusionHead
+from models.image_encoder import ImageEncoder
+from models.text_encoder import TextEncoder
+from models.fusion_head import FusionHead
 
 class MultimodalTriageModel(nn.Module):
     def __init__(self, num_classes=3):
