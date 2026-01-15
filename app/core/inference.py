@@ -31,13 +31,19 @@ def load_model():
 def predict_from_inputs(image=None, text=None):
     model = load_model()
 
-    if image is not None:
-        image = image.to(DEVICE)
+    if image is None:
+        return "Error: No image provided"
 
-    logits = model(image=image, text=text)
+    if text is None or text.strip() == "":
+        text = "No clinical description provided."
+
+    logits = model(
+        image=image,
+        text=[text]   # ✅ CRITICAL FIX
+    )
+
     probs = torch.softmax(logits, dim=1)[0]
+    idx = probs.argmax().item()
 
-    idx = int(probs.argmax())
-    confidence = float(probs[idx])
+    return f"{LABELS[idx]} (confidence: {probs[idx]:.2f})"
 
-    return f"{LABELS[idx]} (confidence: {confidence:.2f})"
