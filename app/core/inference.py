@@ -1,5 +1,4 @@
 import torch
-from app.fusion_model import MultimodalTriageModel
 
 LABELS = ["Low", "Medium", "High"]
 
@@ -11,17 +10,27 @@ _model = None
 
 
 def load_model():
+    """
+    Lazy-load the model to avoid circular imports.
+    This is REQUIRED for Hugging Face Spaces.
+    """
     global _model
+
     if _model is None:
+        from fusion_model import MultimodalTriageModel  # ✅ lazy import
+
         model = MultimodalTriageModel(num_classes=3)
+
         state = torch.load(
             "app/weights/model_weights.pth",
             map_location=DEVICE
         )
+
         model.load_state_dict(state)
         model.to(DEVICE)
         model.eval()
         _model = model
+
     return _model
 
 
@@ -29,19 +38,14 @@ def load_model():
 def predict_from_inputs(image=None, text=None):
     model = load_model()
 
-    if image is None and (text is None or text.strip() == ""):
-        return "❌ Provide image and/or text"
+    if image is None and not text:
+        return "Please provide an image or text."
 
-    if image is not None:
-        image = image.to(DEVICE).unsqueeze(0)
-
-    if text is not None:
-        text = [text]  # MUST be List[str]
-
+    # image: PIL.Image or None
+    # text: str or None
     logits = model(image=image, text=text)
-    probs = torch.softmax(logits, dim=1)
 
-    pred = torch.argmax(probs, dim=1).item()
-    conf = probs[0, pred].item()
+    probs = torch.softmax(logits, dim=1)[0]
+    idx = probs.argmax().item()
 
-    return f"{LABELS[pred]} (confidence: {conf:.2f})"
+    return f"{LABELS[idx]} (confidence: {probs[idx]:.2f})"
