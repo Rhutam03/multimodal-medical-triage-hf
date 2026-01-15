@@ -1,11 +1,22 @@
+from transformers import AutoTokenizer
 import torch
 
-def preprocess_text(text, max_len=100):
+TOKENIZER_NAME = "emilyalsentzer/Bio_ClinicalBERT"
+tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_NAME)
+
+
+def preprocess_text(text, max_len=128):
     """
-    text: str or None
+    text: str | None
+    returns: dict[str, Tensor] | None
     """
     if text is None or text.strip() == "":
         return None
 
-    tokens = [ord(c) % 1000 for c in text][:max_len]
-    return torch.tensor(tokens, dtype=torch.long).unsqueeze(0)
+    return tokenizer(
+        text,
+        padding="max_length",
+        truncation=True,
+        max_length=max_len,
+        return_tensors="pt"
+    )

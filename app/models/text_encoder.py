@@ -13,20 +13,18 @@ class TextEncoder(nn.Module):
         self.model = AutoModel.from_pretrained(
             "emilyalsentzer/Bio_ClinicalBERT"
         )
-
         self.proj = nn.Linear(self.model.config.hidden_size, embed_dim)
 
     def forward(self, texts):
         encoded = self.tokenizer(
-            list(texts),
+            texts,
             padding=True,
             truncation=True,
             max_length=128,
-            return_tensors="pt"
+            return_tensors="pt",
         )
 
         encoded = {k: v.to(self.model.device) for k, v in encoded.items()}
-
         outputs = self.model(**encoded)
         cls = outputs.last_hidden_state[:, 0, :]
         return self.proj(cls)

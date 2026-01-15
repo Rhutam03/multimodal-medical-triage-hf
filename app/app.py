@@ -10,15 +10,10 @@ demo = gr.Interface(
     fn=run,
     inputs=[
         gr.Image(type="pil", label="Medical Image"),
-        gr.Textbox(
-            label="Clinical Description",
-            placeholder="Optional",
-            lines=2
-        ),
+        gr.Textbox(label="Clinical Description", lines=2),
     ],
     outputs=gr.Textbox(label="Triage Result"),
     title="Multimodal Medical Triage System",
-    description="ISIC-trained multimodal medical triage model",
 )
 
 if __name__ == "__main__":

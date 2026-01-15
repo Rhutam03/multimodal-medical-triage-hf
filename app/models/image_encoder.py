@@ -1,15 +1,16 @@
-import torch
 import torch.nn as nn
-from torchvision import models
+import torchvision.models as models
+
 
 class ImageEncoder(nn.Module):
-    def __init__(self, output_dim=256):
+    def __init__(self, embed_dim=256):
         super().__init__()
-        backbone = models.resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V2)
-        self.encoder = nn.Sequential(*list(backbone.children())[:-1])
-        self.fc = nn.Linear(2048, output_dim)
 
-    def forward(self, image_tensor):
-        # image_tensor: (B, 3, 224, 224)
-        features = self.encoder(image_tensor).squeeze(-1).squeeze(-1)
-        return self.fc(features)
+        backbone = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+        self.features = nn.Sequential(*list(backbone.children())[:-1])
+        self.proj = nn.Linear(512, embed_dim)
+
+    def forward(self, x):
+        x = self.features(x)
+        x = x.flatten(1)
+        return self.proj(x)
