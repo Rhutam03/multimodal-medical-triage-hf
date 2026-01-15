@@ -1,25 +1,21 @@
 import torch
 import torch.nn as nn
-from app.models.image_encoder import ImageEncoder
-from app.models.text_encoder import TextEncoder
-from app.models.fusion_head import FusionHead
+
+from models.image_encoder import ImageEncoder
+from models.text_encoder import TextEncoder
+from models.fusion_head import FusionHead
 
 
 class MultimodalTriageModel(nn.Module):
     def __init__(self, num_classes=3):
         super().__init__()
-        self.image_encoder = ImageEncoder(256)
-        self.text_encoder = TextEncoder(256)
-        self.fusion_head = FusionHead(512, num_classes)
 
-    def forward(self, image=None, text=None):
-        feats = []
+        self.image_encoder = ImageEncoder()
+        self.text_encoder = TextEncoder()
+        self.classifier = FusionHead(num_classes)
 
-        if image is not None:
-            feats.append(self.image_encoder(image))
-
-        if text is not None:
-            feats.append(self.text_encoder(text))
-
-        fused = torch.cat(feats, dim=1)
-        return self.fusion_head(fused)
+    def forward(self, image, text):
+        image_feat = self.image_encoder(image)
+        text_feat = self.text_encoder(text)
+        fused = torch.cat([image_feat, text_feat], dim=1)
+        return self.classifier(fused)
