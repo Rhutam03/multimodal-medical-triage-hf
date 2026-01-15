@@ -1,19 +1,26 @@
 import torch
+import torchvision.transforms as T
+from app.fusion_model import MultimodalTriageModel
 
 LABELS = ["Low", "Medium", "High"]
-
-DEVICE = torch.device(
-    "mps" if torch.backends.mps.is_available() else "cpu"
-)
+DEVICE = torch.device("cpu")
 
 _model = None
+
+# Image preprocessing (MATCH training)
+image_transform = T.Compose([
+    T.Resize((224, 224)),
+    T.ToTensor(),
+    T.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225]
+    )
+])
 
 
 def load_model():
     global _model
     if _model is None:
-        from app.fusion_model import MultimodalTriageModel  # LAZY IMPORT
-
         model = MultimodalTriageModel(num_classes=3)
         state = torch.load(
             "app/weights/model_weights.pth",
@@ -23,27 +30,29 @@ def load_model():
         model.to(DEVICE)
         model.eval()
         _model = model
-
     return _model
 
 
 @torch.no_grad()
 def predict_from_inputs(image=None, text=None):
-    model = load_model()
-
     if image is None:
         return "Error: No image provided"
 
     if text is None or text.strip() == "":
         text = "No clinical description provided."
 
+    model = load_model()
+
+    # ✅ PIL → Tensor
+    image_tensor = image_transform(image).unsqueeze(0).to(DEVICE)
+
+    # ✅ Forward pass
     logits = model(
-        image=image,
-        text=[text]   # ✅ CRITICAL FIX
+        image=image_tensor,
+        text=[text]
     )
 
     probs = torch.softmax(logits, dim=1)[0]
     idx = probs.argmax().item()
 
     return f"{LABELS[idx]} (confidence: {probs[idx]:.2f})"
-
