@@ -4,8 +4,8 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 import numpy as np
 import json
 
-from app.fusion_model import MultimodalTriageModel
-from app.training.real_dataset import RealMultimodalDataset
+from fusion_model import MultimodalTriageModel
+from training.real_dataset import RealMultimodalDataset
 
 DEVICE = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
