@@ -1,18 +1,47 @@
 import torch
-from fusion_model import MultimodalTriageModel
+from app.fusion_model import MultimodalTriageModel
 
 LABELS = ["Low", "Medium", "High"]
 
-def load_model(weights_path: str):
-    model = MultimodalTriageModel(num_classes=3)
-    model.load_state_dict(torch.load(weights_path, map_location="cpu"))
-    model.eval()
-    return model
+DEVICE = torch.device(
+    "mps" if torch.backends.mps.is_available() else "cpu"
+)
 
-def predict_from_inputs(model, image=None, text=None):
-    with torch.no_grad():
-        logits = model(image=image, text=text)
-        probs = torch.softmax(logits, dim=1)
-        pred = torch.argmax(probs, dim=1).item()
-        confidence = probs.max().item()
-    return f"{LABELS[pred]} (confidence: {confidence:.2f})"
+_model = None
+
+
+def load_model():
+    global _model
+    if _model is None:
+        model = MultimodalTriageModel(num_classes=3)
+        state = torch.load(
+            "app/weights/model_weights.pth",
+            map_location=DEVICE
+        )
+        model.load_state_dict(state)
+        model.to(DEVICE)
+        model.eval()
+        _model = model
+    return _model
+
+
+@torch.no_grad()
+def predict_from_inputs(image=None, text=None):
+    model = load_model()
+
+    if image is None and (text is None or text.strip() == ""):
+        return "❌ Provide image and/or text"
+
+    if image is not None:
+        image = image.to(DEVICE).unsqueeze(0)
+
+    if text is not None:
+        text = [text]  # MUST be List[str]
+
+    logits = model(image=image, text=text)
+    probs = torch.softmax(logits, dim=1)
+
+    pred = torch.argmax(probs, dim=1).item()
+    conf = probs[0, pred].item()
+
+    return f"{LABELS[pred]} (confidence: {conf:.2f})"
