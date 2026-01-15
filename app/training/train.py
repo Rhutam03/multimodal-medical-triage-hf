@@ -1,123 +1,67 @@
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
-from tqdm import tqdm
+from sklearn.metrics import accuracy_score, confusion_matrix
+import numpy as np
+import json
 
-from app.training.real_dataset import RealMultimodalDataset
 from app.fusion_model import MultimodalTriageModel
+from app.training.real_dataset import RealMultimodalDataset
 
-# =============================
-# CONFIG
-# =============================
-BATCH_SIZE = 32            # Increase if memory allows (64 is OK on M4 Pro)
-EPOCHS = 3
-LR = 1e-4
-NUM_WORKERS = 4            # Apple Silicon sweet spot
-LABELS_CSV = "data/labels.csv"
-IMAGE_DIR = "data/images"
-WEIGHTS_OUT = "app/weights/model_weights.pth"
-
-# =============================
-# DEVICE (Apple Silicon)
-# =============================
 DEVICE = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-print(f"✅ Using device: {DEVICE}")
 
-# =============================
-# COLLATE FUNCTION (CRITICAL FIX)
-# =============================
 def collate_fn(batch):
-    """
-    Fixes:
-    - text being returned as tuples
-    - ensures images are tensors
-    """
-    images = []
-    texts = []
-    labels = []
-
-    for item in batch:
-        images.append(item["image"])
-        texts.append(item["text"])     # keep as list[str]
-        labels.append(item["label"])
-
-    images = torch.stack(images)       # [B, 3, H, W]
-    labels = torch.tensor(labels, dtype=torch.long)
-
     return {
-        "image": images,
-        "text": texts,
-        "label": labels
+        "image": torch.stack([b["image"] for b in batch]),
+        "text": [b["text"] for b in batch],
+        "label": torch.tensor([b["label"] for b in batch])
     }
 
-# =============================
-# TRAIN LOOP
-# =============================
 def train():
-    # Dataset
     dataset = RealMultimodalDataset(
-        labels_csv=LABELS_CSV,
-        image_dir=IMAGE_DIR
+        "data/labels.csv",
+        "data/images"
     )
 
-    if len(dataset) == 0:
-        raise RuntimeError("❌ Dataset is empty. Check labels.csv and images folder.")
-
-    print(f"📦 Dataset size: {len(dataset)}")
-
-    dataloader = DataLoader(
+    loader = DataLoader(
         dataset,
-        batch_size=BATCH_SIZE,
+        batch_size=16,
         shuffle=True,
-        num_workers=NUM_WORKERS,
-        persistent_workers=True,
-        pin_memory=False,          # REQUIRED for MPS
+        num_workers=4,
         collate_fn=collate_fn
     )
 
-    # Model
-    model = MultimodalTriageModel(num_classes=3)
-    model.to(DEVICE)
+    model = MultimodalTriageModel().to(DEVICE)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+    criterion = torch.nn.CrossEntropyLoss()
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
+    for epoch in range(3):
+        preds, labels = [], []
 
-    # =============================
-    # TRAINING
-    # =============================
-    model.train()
-    for epoch in range(EPOCHS):
-        epoch_loss = 0.0
-
-        pbar = tqdm(dataloader, desc=f"Epoch {epoch+1}/{EPOCHS}")
-        for batch in pbar:
-            images = batch["image"].to(DEVICE)
-            texts = batch["text"]           # keep as list[str]
-            labels = batch["label"].to(DEVICE)
-
+        for batch in loader:
             optimizer.zero_grad()
 
-            outputs = model(image=images, text=texts)
-            loss = criterion(outputs, labels)
+            out = model(
+                image=batch["image"].to(DEVICE),
+                text=batch["text"]
+            )
 
+            loss = criterion(out, batch["label"].to(DEVICE))
             loss.backward()
             optimizer.step()
 
-            epoch_loss += loss.item()
-            pbar.set_postfix(loss=f"{loss.item():.4f}")
+            preds.extend(out.argmax(1).cpu().numpy())
+            labels.extend(batch["label"].numpy())
 
-        avg_loss = epoch_loss / len(dataloader)
-        print(f"✅ Epoch {epoch+1} completed | Avg Loss: {avg_loss:.4f}")
+        acc = accuracy_score(labels, preds)
+        print(f"Epoch {epoch+1} | Acc {acc:.3f}")
 
-    # =============================
-    # SAVE MODEL
-    # =============================
-    torch.save(model.state_dict(), WEIGHTS_OUT)
-    print(f"💾 Model saved to {WEIGHTS_OUT}")
+    torch.save(model.state_dict(), "app/weights/model_weights.pth")
 
+    np.save("app/weights/confusion_matrix.npy",
+            confusion_matrix(labels, preds))
 
-# =============================
-# ENTRYPOINT (HF SAFE)
-# =============================
+    with open("app/weights/metrics.json", "w") as f:
+        json.dump({"accuracy": acc}, f)
+
 if __name__ == "__main__":
     train()
