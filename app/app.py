@@ -1,5 +1,5 @@
 import gradio as gr
-from app.core.inference import predict_from_inputs
+from core.inference import predict_from_inputs
 
 
 def run(image, text):
@@ -14,11 +14,11 @@ demo = gr.Interface(
             label="Clinical Description",
             placeholder="Optional",
             lines=2
-        )
+        ),
     ],
     outputs=gr.Textbox(label="Triage Result"),
     title="Multimodal Medical Triage System",
-    description="ISIC-trained multimodal medical triage model"
+    description="ISIC-trained multimodal medical triage model",
 )
 
 if __name__ == "__main__":
