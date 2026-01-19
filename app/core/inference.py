@@ -1,7 +1,7 @@
 import torch
 
-from app.fusion_model import MultimodalTriageModel
-from app.preprocessing.image_preprocess import preprocess_image
+from fusion_model import MultimodalTriageModel
+from preprocessing.image_preprocess import preprocess_image
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -14,7 +14,7 @@ def load_model():
     if _model is None:
         _model = MultimodalTriageModel(num_classes=len(LABELS))
         _model.load_state_dict(
-            torch.load("app/weights/model_weights.pth", map_location=DEVICE)
+            torch.load("weights/model_weights.pth", map_location=DEVICE)
         )
         _model.to(DEVICE)
         _model.eval()
@@ -23,14 +23,12 @@ def load_model():
 
 @torch.no_grad()
 def predict_from_inputs(image=None, text=None):
-    # --- Image ---
     image_tensor = preprocess_image(image)
     if image_tensor is None:
         return "Error: Image preprocessing failed"
 
     image_tensor = image_tensor.to(DEVICE)
 
-    # --- Text (MUST be list[str]) ---
     if text is None or text.strip() == "":
         text_batch = ["No clinical description provided."]
     else:
