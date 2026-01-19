@@ -1,53 +1,43 @@
 import torch
 
-from fusion_model import MultimodalTriageModel
-from preprocessing.image_preprocess import preprocess_image
-from preprocessing.text_preprocess import preprocess_text
+from app.fusion_model import MultimodalTriageModel
+from app.preprocessing.image_preprocess import preprocess_image
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 LABELS = ["Low", "Medium", "High"]
-
-DEVICE = torch.device(
-    "cuda" if torch.cuda.is_available()
-    else "mps" if torch.backends.mps.is_available()
-    else "cpu"
-)
-
-WEIGHTS_PATH = "app/weights/model_weights.pth"
-
 _model = None
 
 
 def load_model():
     global _model
-    if _model is not None:
-        return _model
-
-    model = MultimodalTriageModel(num_classes=len(LABELS))
-    state = torch.load(WEIGHTS_PATH, map_location=DEVICE)
-    model.load_state_dict(state, strict=False)
-    model.to(DEVICE)
-    model.eval()
-
-    _model = model
-    return model
+    if _model is None:
+        _model = MultimodalTriageModel(num_classes=len(LABELS))
+        _model.load_state_dict(
+            torch.load("app/weights/model_weights.pth", map_location=DEVICE)
+        )
+        _model.to(DEVICE)
+        _model.eval()
+    return _model
 
 
 @torch.no_grad()
 def predict_from_inputs(image=None, text=None):
-    if image is None:
-        return "Error: No image provided"
-
-    model = load_model()
-
+    # --- Image ---
     image_tensor = preprocess_image(image)
-    text_batch = preprocess_text(text)
+    if image_tensor is None:
+        return "Error: Image preprocessing failed"
 
     image_tensor = image_tensor.to(DEVICE)
 
-    logits = model(
-        image=image_tensor,
-        text=text_batch
-    )
+    # --- Text (MUST be list[str]) ---
+    if text is None or text.strip() == "":
+        text_batch = ["No clinical description provided."]
+    else:
+        text_batch = [text]
+
+    model = load_model()
+    logits = model(image=image_tensor, text=text_batch)
 
     probs = torch.softmax(logits, dim=1)[0]
     idx = probs.argmax().item()
