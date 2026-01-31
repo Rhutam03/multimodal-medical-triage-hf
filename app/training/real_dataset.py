@@ -1,20 +1,20 @@
+import os
+import pandas as pd
 import torch
 from torch.utils.data import Dataset
 from PIL import Image
-import pandas as pd
-from pathlib import Path
-from torchvision import transforms
+
+from app.preprocessing.image_preprocess import preprocess_image
+from app.preprocessing.text_preprocess import preprocess_text
 
 
 class RealMultimodalDataset(Dataset):
     def __init__(self, labels_csv, image_dir):
         self.df = pd.read_csv(labels_csv)
-        self.image_dir = Path(image_dir)
+        self.image_dir = image_dir
 
-        self.transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor()
-        ])
+        assert len(self.df) > 0, "labels.csv is empty"
+        print("✅ Dataset loaded")
 
     def __len__(self):
         return len(self.df)
@@ -22,11 +22,19 @@ class RealMultimodalDataset(Dataset):
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
 
-        image = Image.open(self.image_dir / row["image"]).convert("RGB")
-        image = self.transform(image)
+        image_path = os.path.join(self.image_dir, row["image"])
+        label = int(row["label"])
+        text = row.get("report", "")
 
-        return {
-            "image": image,
-            "text": row["text"],
-            "label": int(row["label"])
-        }
+        # ---- Image
+        image = Image.open(image_path).convert("RGB")
+        image_tensor = preprocess_image(image)   # [3, 224, 224]
+
+        # ---- Text
+        text_tensor = preprocess_text(text)       # [128]
+
+        return (
+            image_tensor,
+            text_tensor,
+            torch.tensor(label, dtype=torch.long)
+        )

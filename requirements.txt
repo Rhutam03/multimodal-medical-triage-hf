@@ -6,3 +6,5 @@ pillow
 numpy
 scikit-learn
 matplotlib
+timm
+pandas

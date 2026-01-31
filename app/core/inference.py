@@ -37,7 +37,11 @@ def predict_from_inputs(image=None, text=None):
     model = load_model()
     logits = model(image=image_tensor, text=text_batch)
 
-    probs = torch.softmax(logits, dim=1)[0]
-    idx = probs.argmax().item()
+    # --------------------------------------------------
+    # ✅ Temperature scaling (confidence calibration)
+    # --------------------------------------------------
+    TEMPERATURE = 0.7
+    probs = torch.softmax(logits / TEMPERATURE, dim=1)[0]
 
+    idx = probs.argmax().item()
     return f"{LABELS[idx]} (confidence: {probs[idx]:.2f})"
