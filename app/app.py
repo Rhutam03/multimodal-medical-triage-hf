@@ -1,10 +1,15 @@
 import torch
 import gradio as gr
 from PIL import Image
+import sys
+import os
 
-from app.fusion_model import MultimodalTriageModel
-from app.preprocessing.image_preprocess import preprocess_image
-from app.preprocessing.text_preprocess import preprocess_text
+# 🔧 Make repo root importable
+sys.path.append(os.path.dirname(__file__))
+
+from fusion_model import MultimodalTriageModel
+from preprocessing.image_preprocess import preprocess_image
+from preprocessing.text_preprocess import preprocess_text
 
 # =====================
 # DEVICE
@@ -37,22 +42,15 @@ model.eval()
 LABELS = ["Low Risk", "Medium Risk", "High Risk"]
 
 # =====================
-# PREDICTION FUNCTION
+# PREDICT
 # =====================
 def predict(image: Image.Image, text: str):
-    """
-    image: PIL Image
-    text: clinical notes
-    """
-
     if image is None:
         return {label: 0.0 for label in LABELS}
 
-    # ---- Preprocess
-    image_tensor = preprocess_image(image).unsqueeze(0).to(DEVICE)  # [1, 3, 224, 224]
-    text_tensor = preprocess_text(text).unsqueeze(0).to(DEVICE)     # [1, 128]
+    image_tensor = preprocess_image(image).unsqueeze(0).to(DEVICE)
+    text_tensor = preprocess_text(text).unsqueeze(0).to(DEVICE)
 
-    # ---- Inference
     with torch.no_grad():
         outputs = model(image_tensor, text_tensor)
         probs = torch.softmax(outputs, dim=1)[0]
@@ -60,7 +58,7 @@ def predict(image: Image.Image, text: str):
     return {LABELS[i]: float(probs[i]) for i in range(len(LABELS))}
 
 # =====================
-# GRADIO INTERFACE
+# GRADIO UI
 # =====================
 interface = gr.Interface(
     fn=predict,
@@ -68,21 +66,13 @@ interface = gr.Interface(
         gr.Image(type="pil", label="Medical Image"),
         gr.Textbox(
             lines=4,
-            placeholder="Enter clinical notes (symptoms, observations, etc.)",
+            placeholder="Enter clinical notes",
             label="Clinical Text"
         ),
     ],
     outputs=gr.Label(label="Triage Prediction"),
     title="Multimodal Medical Triage System",
-    description=(
-        "This demo predicts patient triage level using both a medical image "
-        "and clinical text notes. The model combines CNN-based image features "
-        "with text embeddings for multimodal decision-making."
-    ),
-    examples=[
-        ["examples/sample1.jpg", "Patient has mild headache and dizziness"],
-        ["examples/sample2.jpg", "Severe bleeding and loss of consciousness"]
-    ]
+    description="Image + text based medical triage classification"
 )
 
 # =====================
