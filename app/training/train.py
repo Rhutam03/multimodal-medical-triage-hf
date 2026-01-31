@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, random_split
+from collections import Counter
 
 from app.fusion_model import MultimodalTriageModel
 from app.training.real_dataset import RealMultimodalDataset
@@ -19,7 +20,55 @@ else:
 print("Using device:", DEVICE)
 
 # =====================
-# TRAIN FUNCTION
+# CLASS WEIGHT UTILS
+# =====================
+def compute_class_weights(dataset, num_classes):
+    """
+    Compute inverse-frequency class weights.
+    """
+    labels = [int(dataset[i][2]) for i in range(len(dataset))]
+    counts = Counter(labels)
+
+    print("Training class distribution:", counts)
+
+    total = sum(counts.values())
+    weights = []
+
+    for i in range(num_classes):
+        weights.append(total / (counts.get(i, 0) + 1e-6))
+
+    weights = torch.tensor(weights, dtype=torch.float32)
+    return weights
+
+
+# =====================
+# VALIDATION
+# =====================
+def validate(model, dataloader, criterion):
+    model.eval()
+    total, correct = 0, 0
+    loss_sum = 0.0
+
+    with torch.no_grad():
+        for images, text_feats, labels in dataloader:
+            images = images.to(DEVICE)
+            text_feats = text_feats.to(DEVICE)
+            labels = labels.to(DEVICE)
+
+            outputs = model(images, text_feats)
+            loss = criterion(outputs, labels)
+            loss_sum += loss.item()
+
+            preds = outputs.argmax(dim=1)
+            correct += (preds == labels).sum().item()
+            total += labels.size(0)
+
+    model.train()
+    return loss_sum / len(dataloader), correct / total
+
+
+# =====================
+# TRAINING
 # =====================
 def train():
     dataset = RealMultimodalDataset(
@@ -34,20 +83,36 @@ def train():
 
     train_ds, val_ds = random_split(dataset, [train_size, val_size])
 
-    train_loader = DataLoader(train_ds, batch_size=16, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_ds, batch_size=16, shuffle=False, num_workers=0)
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=16,
+        shuffle=True,
+        num_workers=0
+    )
 
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=16,
+        shuffle=False,
+        num_workers=0
+    )
+
+    # ---- Model
     model = MultimodalTriageModel(num_classes=3).to(DEVICE)
 
+    # ---- Class-weighted loss (KEY FIX)
+    num_classes = 3
+    class_weights = compute_class_weights(train_ds, num_classes).to(DEVICE)
+    print("Class weights:", class_weights)
+
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
     optimizer = AdamW(model.parameters(), lr=1e-4)
-    criterion = nn.CrossEntropyLoss()
 
     best_val_acc = 0.0
     EPOCHS = 3
 
     for epoch in range(EPOCHS):
         print(f"\n🟢 Epoch {epoch+1}/{EPOCHS}")
-        model.train()
         running_loss = 0.0
 
         for step, (images, text_feats, labels) in enumerate(train_loader):
@@ -75,39 +140,13 @@ def train():
         # ---- Save best model
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            torch.save({
-                "model_state": model.state_dict(),
-                "epoch": epoch,
-                "val_accuracy": val_acc
-            }, "app/weights/triage_best.pt")
+            torch.save(
+                {"model_state": model.state_dict()},
+                "app/weights/triage_best.pt"
+            )
             print("💾 Saved best model")
 
-    print("🎉 Training completed")
-
-
-# =====================
-# VALIDATION
-# =====================
-def validate(model, dataloader, criterion):
-    model.eval()
-    total, correct = 0, 0
-    loss_sum = 0.0
-
-    with torch.no_grad():
-        for images, text_feats, labels in dataloader:
-            images = images.to(DEVICE)
-            text_feats = text_feats.to(DEVICE)
-            labels = labels.to(DEVICE)
-
-            outputs = model(images, text_feats)
-            loss = criterion(outputs, labels)
-            loss_sum += loss.item()
-
-            preds = outputs.argmax(dim=1)
-            correct += (preds == labels).sum().item()
-            total += labels.size(0)
-
-    return loss_sum / len(dataloader), correct / total
+    print("🎉 Training complete")
 
 
 if __name__ == "__main__":
