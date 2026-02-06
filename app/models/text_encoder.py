@@ -2,31 +2,26 @@ import torch
 import torch.nn as nn
 from transformers import AutoModel, AutoTokenizer
 
-
 class TextEncoder(nn.Module):
-    def __init__(self, model_name="emilyalsentzer/Bio_ClinicalBERT"):
+    def __init__(self):
         super().__init__()
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModel.from_pretrained(model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
+        self.model = AutoModel.from_pretrained("distilbert-base-uncased")
 
-        # 🔑 REQUIRED BY fusion_model.py
-        self.output_dim = self.model.config.hidden_size  # 768
+        for param in self.model.parameters():
+            param.requires_grad = False
+
+        self.output_dim = 768
 
     def forward(self, texts):
-        if isinstance(texts, str):
-            texts = [texts]
-
-        encoded = self.tokenizer(
+        tokens = self.tokenizer(
             texts,
             padding=True,
             truncation=True,
+            max_length=128,
             return_tensors="pt"
-        )
+        ).to(next(self.model.parameters()).device)
 
-        encoded = {k: v.to(next(self.parameters()).device) for k, v in encoded.items()}
-
-        outputs = self.model(**encoded)
-
-        # CLS token embedding
+        outputs = self.model(**tokens)
         return outputs.last_hidden_state[:, 0, :]
