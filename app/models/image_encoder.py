@@ -1,21 +1,19 @@
 import torch
 import torch.nn as nn
-import torchvision.models as models
-
+from torchvision import models
 
 class ImageEncoder(nn.Module):
     def __init__(self):
         super().__init__()
 
-        backbone = models.resnet18(pretrained=True)
+        backbone = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
 
-        # Remove classification head
-        self.feature_extractor = nn.Sequential(*list(backbone.children())[:-1])
+        for param in backbone.parameters():
+            param.requires_grad = False
 
-        # ResNet18 outputs 512-dim features
+        self.features = nn.Sequential(*list(backbone.children())[:-1])
         self.output_dim = 512
 
     def forward(self, x):
-        x = self.feature_extractor(x)  # [B, 512, 1, 1]
-        x = x.view(x.size(0), -1)       # [B, 512]
-        return x
+        x = self.features(x)
+        return x.view(x.size(0), -1)
