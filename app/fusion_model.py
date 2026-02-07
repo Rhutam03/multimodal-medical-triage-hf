@@ -4,7 +4,6 @@ import torch.nn as nn
 from models.image_encoder import ImageEncoder
 from models.text_encoder import TextEncoder
 
-
 class MultimodalTriageModel(nn.Module):
     def __init__(self, num_classes=3):
         super().__init__()
@@ -29,8 +28,6 @@ class MultimodalTriageModel(nn.Module):
     def forward(self, images, texts):
         img_feat = self.image_encoder(images)
         txt_feat = self.text_encoder(texts)
-
         fused = torch.cat([img_feat, txt_feat], dim=1)
         fused = self.norm(fused)
-
         return self.classifier(fused)
