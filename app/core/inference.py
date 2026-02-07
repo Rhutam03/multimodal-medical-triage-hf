@@ -1,26 +1,14 @@
 import os
 import torch
-
-from fusion_model import MultimodalTriageModel
+from app.fusion_model import MultimodalTriageModel
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+WEIGHTS_PATH = "weights/model_weights.pth"
 
-WEIGHTS_DIR = "weights"
-WEIGHTS_PATH = os.path.join(WEIGHTS_DIR, "model_weights.pth")
-
-WEIGHTS_URL = (
-    "https://huggingface.co/Rhutam/multimodal-medical-triage-model/resolve/main/model_weights.pth"
-)
-
-def _download_weights():
-    os.makedirs(WEIGHTS_DIR, exist_ok=True)
+def load_model():
     if not os.path.exists(WEIGHTS_PATH):
-        print("⬇️ Downloading model weights...")
-        torch.hub.download_url_to_file(WEIGHTS_URL, WEIGHTS_PATH)
-        print("✅ Weights downloaded")
+        raise FileNotFoundError(f"Missing weights at {WEIGHTS_PATH}")
 
-def _load_model():
-    _download_weights()
     model = MultimodalTriageModel(num_classes=3)
     state = torch.load(WEIGHTS_PATH, map_location=DEVICE)
     model.load_state_dict(state)
@@ -28,12 +16,16 @@ def _load_model():
     model.eval()
     return model
 
-# 🔥 Model loaded ONCE
-MODEL = _load_model()
+MODEL = load_model()
 
 @torch.no_grad()
 def predict_from_inputs(image, text):
-    logits = MODEL(image, text)
+    # dummy tokenizer (replace later)
+    tokens = torch.randint(0, 10000, (1, 10)).to(DEVICE)
+    image = image.unsqueeze(0).to(DEVICE)
+
+    logits = MODEL(image, tokens)
     probs = torch.softmax(logits, dim=1)
     conf, pred = torch.max(probs, dim=1)
+
     return pred.item(), conf.item()

@@ -1,19 +1,15 @@
 import gradio as gr
-from PIL import Image
-
-from core.inference import predict_from_inputs
-from preprocess.image_preprocess import image_transform
+from app.core.inference import predict_from_inputs
 
 def run(image, text):
-    image = image_transform(image).unsqueeze(0)
     pred, conf = predict_from_inputs(image, text)
-    return f"Class {pred} (confidence: {conf:.2f})"
+    return f"Prediction: {pred}, Confidence: {conf:.2f}"
 
 demo = gr.Interface(
     fn=run,
     inputs=[
-        gr.Image(type="pil"),
-        gr.Textbox(label="Clinical description")
+        gr.Image(type="tensor"),
+        gr.Textbox(label="Patient description")
     ],
     outputs="text",
     title="Multimodal Medical Triage"
