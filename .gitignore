@@ -9,6 +9,6 @@ venv/
 data/
 
 # Model weights (local training artifacts)
-app/weights/*.pth
-app/weights/*.pt
+weights/*.pth
+weights/*.pt
 .gradio/
