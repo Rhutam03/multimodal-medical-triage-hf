@@ -11,4 +11,5 @@ data/
 # Model weights (local training artifacts)
 weights/*.pth
 weights/*.pt
+weights/*.bin
 .gradio/
