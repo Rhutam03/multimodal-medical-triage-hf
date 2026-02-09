@@ -1,11 +1,17 @@
 import torch
 import torch.nn as nn
+from models.image_encoder import ImageEncoder   # ✅
+from models.text_encoder import TextEncoder     # ✅
 
-class TextEncoder(nn.Module):
-    def __init__(self):
+class MultimodalTriageModel(nn.Module):
+    def __init__(self, num_classes=3):
         super().__init__()
-        self.embedding = nn.Embedding(10000, 128)
+        self.image_encoder = ImageEncoder()
+        self.text_encoder = TextEncoder()
+        self.classifier = nn.Linear(256, num_classes)
 
-    def forward(self, text_tokens):
-        emb = self.embedding(text_tokens)
-        return emb.mean(dim=1)
+    def forward(self, image, text_tokens):
+        img_feat = self.image_encoder(image)
+        txt_feat = self.text_encoder(text_tokens)
+        fused = torch.cat([img_feat, txt_feat], dim=1)
+        return self.classifier(fused)

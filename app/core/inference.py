@@ -1,6 +1,6 @@
 import os
 import torch
-from app.fusion_model import MultimodalTriageModel
+from fusion_model import MultimodalTriageModel   # ✅ NO app.
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 WEIGHTS_PATH = "weights/model_weights.pth"
@@ -20,7 +20,6 @@ MODEL = load_model()
 
 @torch.no_grad()
 def predict_from_inputs(image, text):
-    # dummy tokenizer (replace later)
     tokens = torch.randint(0, 10000, (1, 10)).to(DEVICE)
     image = image.unsqueeze(0).to(DEVICE)
 
