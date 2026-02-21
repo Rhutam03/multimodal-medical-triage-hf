@@ -1,17 +1,16 @@
 import torch
 import torch.nn as nn
-from models.image_encoder import ImageEncoder   # ✅
-from models.text_encoder import TextEncoder     # ✅
+import torchvision.models as models
 
-class MultimodalTriageModel(nn.Module):
-    def __init__(self, num_classes=3):
+
+class ImageEncoder(nn.Module):
+    def __init__(self):
         super().__init__()
-        self.image_encoder = ImageEncoder()
-        self.text_encoder = TextEncoder()
-        self.classifier = nn.Linear(256, num_classes)
 
-    def forward(self, image, text_tokens):
-        img_feat = self.image_encoder(image)
-        txt_feat = self.text_encoder(text_tokens)
-        fused = torch.cat([img_feat, txt_feat], dim=1)
-        return self.classifier(fused)
+        backbone = models.resnet18(weights=None)
+        self.feature_extractor = nn.Sequential(*list(backbone.children())[:-1])
+        self.out_dim = 512
+
+    def forward(self, x):
+        x = self.feature_extractor(x)
+        return x.view(x.size(0), -1)

@@ -1,46 +1,43 @@
+import os
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+import torch.optim as optim
 
-from fusion_model import MultimodalTriageModel
-from training.real_dataset import RealMultimodalDataset
-from preprocess.image_preprocess import image_transform
+from ..fusion_model import MultimodalTriageModel
 
-DEVICE = torch.device("cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+WEIGHTS_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "weights")
+)
+os.makedirs(WEIGHTS_DIR, exist_ok=True)
+
+WEIGHTS_PATH = os.path.join(WEIGHTS_DIR, "model_weights.pth")
 
 
 def train():
-    dataset = RealMultimodalDataset(
-        labels_csv="data/labels.csv",
-        image_dir="data/images",
-        transform=image_transform
-    )
-
-    loader = DataLoader(dataset, batch_size=32, shuffle=True)
-
     model = MultimodalTriageModel(num_classes=3).to(DEVICE)
+
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    criterion = nn.CrossEntropyLoss()
+
     model.train()
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+    for _ in range(5):
+        images = torch.randn(8, 3, 224, 224).to(DEVICE)
+        tokens = torch.randint(0, 10000, (8, 20)).to(DEVICE)
+        labels = torch.randint(0, 3, (8,)).to(DEVICE)
 
-    for epoch in range(3):
-        total_loss = 0
-        for images, texts, labels in loader:
-            images = images.to(DEVICE)
-            labels = labels.to(DEVICE)
+        optimizer.zero_grad()
+        outputs = model(images, tokens)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
 
-            optimizer.zero_grad()
-            loss = criterion(model(images, texts), labels)
-            loss.backward()
-            optimizer.step()
+        print("Loss:", loss.item())
 
-            total_loss += loss.item()
-
-        print(f"Epoch {epoch+1} | Loss {total_loss:.4f}")
-
-    torch.save(model.state_dict(), "weights/model_weights.pth")
-    print("Training complete. Weights saved.")
+    torch.save(model.state_dict(), WEIGHTS_PATH)
+    print("Saved weights to:", WEIGHTS_PATH)
 
 
 if __name__ == "__main__":
