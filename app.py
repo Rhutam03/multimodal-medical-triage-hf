@@ -6,8 +6,7 @@ import os
 
 # Add src to path
 sys.path.append(os.path.abspath("src"))
-
-from core.inference import predict_from_inputs
+from src.core.inference import predict_from_inputs
 
 # Image preprocessing
 transform = transforms.Compose([
