@@ -1,7 +1,7 @@
 import torch
 import os
 
-from app.fusion_model import MultimodalTriageModel
+from src.fusion_model import MultimodalTriageModel
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

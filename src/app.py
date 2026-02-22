@@ -2,7 +2,7 @@ import gradio as gr
 import torch
 from torchvision import transforms
 
-from app.core.inference import predict_from_inputs
+from src.core.inference import predict_from_inputs
 
 
 transform = transforms.Compose([
