@@ -1,7 +1,9 @@
 import torch
 import os
 
-from src.fusion_model import MultimodalTriageModel
+from fusion_model import MultimodalTriageModel
+from models.image_encoder import ImageEncoder
+from models.text_encoder import TextEncoder
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
