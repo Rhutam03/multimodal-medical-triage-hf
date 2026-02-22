@@ -1,17 +1,22 @@
 import gradio as gr
 import torch
 from torchvision import transforms
-from .core.inference import predict_from_inputs
+
+from app.core.inference import predict_from_inputs
+
 
 transform = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Resize((224,224)),
+    transforms.Resize((224, 224)),
 ])
+
 
 def predict(image, text):
     image = transform(image).unsqueeze(0)
     pred, conf = predict_from_inputs(image, text)
     return f"Prediction: {pred} | Confidence: {conf:.4f}"
+
+
 demo = gr.Interface(
     fn=predict,
     inputs=[
@@ -21,6 +26,7 @@ demo = gr.Interface(
     outputs="text",
     title="Multimodal Medical Triage"
 )
+
 
 if __name__ == "__main__":
     demo.launch()

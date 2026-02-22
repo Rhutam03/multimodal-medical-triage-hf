@@ -8,7 +8,10 @@ class ImageEncoder(nn.Module):
         super().__init__()
 
         backbone = models.resnet18(weights=None)
-        self.feature_extractor = nn.Sequential(*list(backbone.children())[:-1])
+        self.feature_extractor = nn.Sequential(
+            *list(backbone.children())[:-1]
+        )
+
         self.out_dim = 512
 
     def forward(self, x):

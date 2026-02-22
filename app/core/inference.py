@@ -1,9 +1,13 @@
 import torch
 import os
-from ..fusion_model import MultimodalTriageModel
+
+from app.fusion_model import MultimodalTriageModel
+
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 WEIGHTS_PATH = os.path.join(BASE_DIR, "weights", "model_weights.pth")
+
 
 def load_model():
     model = MultimodalTriageModel(num_classes=3)
@@ -16,7 +20,9 @@ def load_model():
     model.eval()
     return model
 
+
 MODEL = load_model()
+
 
 @torch.no_grad()
 def predict_from_inputs(image, text):
@@ -25,5 +31,6 @@ def predict_from_inputs(image, text):
 
     logits = MODEL(image, tokens)
     probs = torch.softmax(logits, dim=1)
+
     conf, pred = torch.max(probs, dim=1)
     return pred.item(), conf.item()
