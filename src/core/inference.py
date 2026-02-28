@@ -1,13 +1,11 @@
 import torch
 import os
 
-from fusion_model import MultimodalTriageModel
-from models.image_encoder import ImageEncoder
-from models.text_encoder import TextEncoder
+from src.fusion_model import MultimodalTriageModel
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 WEIGHTS_PATH = os.path.join(BASE_DIR, "weights", "model_weights.pth")
 
 
@@ -35,4 +33,5 @@ def predict_from_inputs(image, text):
     probs = torch.softmax(logits, dim=1)
 
     conf, pred = torch.max(probs, dim=1)
+
     return pred.item(), conf.item()
