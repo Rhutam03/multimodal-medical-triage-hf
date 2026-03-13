@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-multipart
+boto3
+Pillow
+requests
+torch
+torchvision
+pandas
+numpy
+scikit-learn
+matplotlib
+timm
+transformers

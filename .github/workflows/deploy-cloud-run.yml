@@ -1,0 +1,58 @@
+name: Deploy Cloud Run API
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  GAR_REPOSITORY: ${{ vars.GAR_REPOSITORY }}
+  CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build image
+        run: |
+          docker build -t "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/triage-api:${{ github.sha }}" .
+
+      - name: Push image
+        run: |
+          docker push "${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/triage-api:${{ github.sha }}"
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.CLOUD_RUN_SERVICE }}
+          region: ${{ env.GCP_REGION }}
+          image: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/triage-api:${{ github.sha }}
+          flags: >-
+            --allow-unauthenticated
+            --set-env-vars=MODEL_VERSION=${{ github.sha }},ENVIRONMENT=prod,REQUIRE_BEARER_TOKEN=true
+            --set-secrets=API_TOKEN=triage-api-token:latest
+
+      - name: Print deployed image
+        run: |
+          echo "Deployed image: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPOSITORY }}/triage-api:${{ github.sha }}"
