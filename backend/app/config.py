@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     environment: str = "dev"
     model_version: str = "v1"
 
-    aws_region: str = "us-east-1"
+    aws_region: str = "us-east-2"
     uploads_bucket: str = "change-me-uploads-bucket"
     predictions_table: str = "medical-triage-predictions"
 
