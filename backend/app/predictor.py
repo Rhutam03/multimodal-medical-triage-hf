@@ -1,18 +1,15 @@
-import io
 import time
 import uuid
-from PIL import Image
 
+from app.image_utils import load_image_tensor
 from src.core.inference import LABEL_MAP, predict_from_inputs
-from src.preprocess.image_preprocess import image_transform
 
 
 def run_prediction(image_bytes: bytes, content_type: str, text: str) -> dict:
     request_id = str(uuid.uuid4())
     started = time.perf_counter()
 
-    pil_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    image_tensor = image_transform(pil_image).unsqueeze(0)
+    image_tensor = load_image_tensor(image_bytes)
 
     pred, conf, prob_dict = predict_from_inputs(image_tensor, text or "")
     predicted_class = LABEL_MAP[pred]

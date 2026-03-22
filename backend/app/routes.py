@@ -1,5 +1,6 @@
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
+from app.image_utils import InvalidImageError
 from app.predictor import run_prediction
 
 router = APIRouter()
@@ -22,4 +23,7 @@ async def predict(
     if not image_bytes:
         raise HTTPException(status_code=400, detail="Empty image file")
 
-    return run_prediction(image_bytes, image.content_type, text)
+    try:
+        return run_prediction(image_bytes, image.content_type, text)
+    except InvalidImageError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
