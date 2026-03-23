@@ -15,7 +15,7 @@ env:
   AWS_REGION: us-east-2
   FRONTEND_BUCKET: multimodal-medical-triage
   CLOUDFRONT_DISTRIBUTION_ID: ENINH69KRT8HG
-  VITE_API_BASE_URL: https://REPLACE_WITH_YOUR_APP_RUNNER_URL
+  VITE_API_BASE_URL: https://us-east-2.console.aws.amazon.com/apprunner/home?region=us-east-2#/services/dashboard?service_arn=arn%3Aaws%3Aapprunner%3Aus-east-2%3A844099235072%3Aservice%2Fmultimodal-medical-triage-backend%2F9197afd9b3d14eabb545bdd0b7468a12&active_tab=logs
 
 jobs:
   deploy:
