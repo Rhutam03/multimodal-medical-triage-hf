@@ -15,7 +15,7 @@ env:
   AWS_REGION: us-east-2
   FRONTEND_BUCKET: multimodal-medical-triage
   CLOUDFRONT_DISTRIBUTION_ID: ENINH69KRT8HG
-  VITE_API_BASE_URL: https://nykfzmay35.us-east-2.awsapprunner.com
+  VITE_API_BASE_URL: https://nykfzmay35.us-east-2.awsapprunner.com 
 
 jobs:
   deploy:
