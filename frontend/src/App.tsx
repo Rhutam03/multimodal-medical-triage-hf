@@ -14,6 +14,8 @@ import {
   type PredictionResponse,
 } from "./api";
 
+const APP_NAME = "SkinSight Triage";
+
 const NOTE_TEMPLATES = [
   "55-year-old female with lesion on anterior torso. Slow change in pigmentation over the last 2 months. No fever. Mild itching reported.",
   "42-year-old male with irregular pigmented lesion on upper back. Recent increase in size. No bleeding. Family history of skin cancer.",
@@ -21,10 +23,10 @@ const NOTE_TEMPLATES = [
 ];
 
 const CLINICAL_HINTS = [
-  "Anatomical location",
-  "Recent growth or color change",
-  "Pain, bleeding, or itching",
-  "Patient age and relevant history",
+  "Where the lesion is located",
+  "Whether it recently changed in size or color",
+  "Pain, itching, bleeding, or discharge",
+  "Relevant patient history or family history",
 ];
 
 function formatPercent(value: number): string {
@@ -55,9 +57,9 @@ function getRiskMeta(prediction?: string): {
     return {
       toneClass: "tone-high",
       badgeClass: "badge-high",
-      title: "High-risk triage signal",
+      title: "Needs faster follow-up",
       summary:
-        "This case deserves faster clinical review. Use the prediction as a prioritization cue, not a diagnosis.",
+        "The model sees stronger risk signals in this case. Use this as a prioritization aid and pair it with clinical judgment.",
     };
   }
 
@@ -65,18 +67,18 @@ function getRiskMeta(prediction?: string): {
     return {
       toneClass: "tone-medium",
       badgeClass: "badge-medium",
-      title: "Moderate-risk triage signal",
+      title: "Worth a closer review",
       summary:
-        "This case may benefit from additional review, supporting notes, or follow-up imaging before escalation.",
+        "This case sits in the middle range and may benefit from additional review, better notes, or follow-up imaging.",
     };
   }
 
   return {
     toneClass: "tone-low",
     badgeClass: "badge-low",
-    title: "Lower-risk triage signal",
+    title: "Lower-priority triage signal",
     summary:
-      "This case appears lower priority based on current inputs, but clinical judgment should remain the final decision-maker.",
+      "The current inputs suggest a lower-risk pattern, but this should still be interpreted in context by a clinician.",
   };
 }
 
@@ -102,6 +104,7 @@ function App() {
   }
 
   useEffect(() => {
+    document.title = APP_NAME;
     void loadHistory();
   }, []);
 
@@ -196,50 +199,51 @@ function App() {
 
   return (
     <div className="app-shell">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
+      <div className="animated-bg">
+        <span className="orb orb-one" />
+        <span className="orb orb-two" />
+        <span className="orb orb-three" />
+        <span className="grid-glow" />
+      </div>
 
       <header className="topbar">
         <div className="brand">
           <div className="brand-mark">✚</div>
           <div>
-            <p className="brand-eyebrow">Clinical AI portfolio project</p>
-            <h1>Multimodal Medical Triage</h1>
+            <p className="brand-subtitle">
+              Smarter lesion review with image and clinical context
+            </p>
+            <h1>{APP_NAME}</h1>
           </div>
-        </div>
-
-        <div className="topbar-pills">
-          <span className="pill">Live on AWS</span>
-          <span className="pill pill-muted">Research demo only</span>
         </div>
       </header>
 
       <section className="hero-panel">
         <div>
-          <p className="eyebrow">Image + notes + triage confidence</p>
-          <h2>Make it feel like a product, not just a prediction form.</h2>
+          <p className="eyebrow">Image + notes + triage summary</p>
+          <h2>A cleaner, more human way to review dermatology-style cases.</h2>
           <p className="hero-copy">
-            This interface is designed like a lightweight clinical operations
-            dashboard: guided intake, explainable risk output, recent case
-            history, and clearer human-facing language.
+            Upload a lesion image, add a short clinical note, and get an
+            easy-to-read triage summary with confidence, supporting signals,
+            and recent case history.
           </p>
         </div>
 
         <div className="hero-stats">
           <div className="mini-stat">
-            <span className="mini-stat-label">Input mode</span>
-            <strong>Multimodal</strong>
-            <small>lesion image + clinical notes</small>
+            <span className="mini-stat-label">What you upload</span>
+            <strong>Image + case notes</strong>
+            <small>A lesion image with optional clinical context</small>
           </div>
           <div className="mini-stat">
-            <span className="mini-stat-label">Output</span>
-            <strong>Triage class</strong>
-            <small>risk signal + confidence</small>
+            <span className="mini-stat-label">What you get</span>
+            <strong>Clear triage summary</strong>
+            <small>Readable risk level, confidence, and class breakdown</small>
           </div>
           <div className="mini-stat">
-            <span className="mini-stat-label">Experience</span>
-            <strong>Portfolio ready</strong>
-            <small>clean UI, reusable history, polished copy</small>
+            <span className="mini-stat-label">Best for</span>
+            <strong>Fast case review</strong>
+            <small>Useful for demos, prototyping, and workflow storytelling</small>
           </div>
         </div>
       </section>
@@ -294,7 +298,7 @@ function App() {
             </label>
 
             <div className="template-bar">
-              <span>Quick note templates:</span>
+              <span>Quick note templates</span>
               <div className="template-chips">
                 {NOTE_TEMPLATES.map((template, index) => (
                   <button
@@ -338,7 +342,7 @@ function App() {
 
           <div className="support-card">
             <p className="panel-kicker">Helpful inputs</p>
-            <h4>What makes a stronger triage request?</h4>
+            <h4>What makes a stronger request?</h4>
             <ul className="hint-list">
               {CLINICAL_HINTS.map((hint) => (
                 <li key={hint}>{hint}</li>
@@ -464,15 +468,15 @@ function App() {
               <div className="empty-feature-grid">
                 <div className="empty-feature">
                   <strong>Readable output</strong>
-                  <span>Clear risk badge and action-oriented copy</span>
+                  <span>Clear risk status with human-friendly explanation</span>
                 </div>
                 <div className="empty-feature">
                   <strong>Explainability</strong>
-                  <span>Probability bars instead of raw JSON</span>
+                  <span>Probability bars instead of raw JSON blocks</span>
                 </div>
                 <div className="empty-feature">
                   <strong>Reusable history</strong>
-                  <span>Quick access to recent cases and notes</span>
+                  <span>Quick access to recent cases and saved notes</span>
                 </div>
               </div>
             </div>
@@ -483,7 +487,7 @@ function App() {
           <div className="panel-header">
             <div>
               <p className="panel-kicker">Step 3</p>
-              <h3>How the workflow feels</h3>
+              <h3>How it works</h3>
             </div>
           </div>
 
@@ -491,22 +495,22 @@ function App() {
             <div className="workflow-item">
               <span>01</span>
               <div>
-                <strong>Upload lesion image</strong>
-                <p>Drag-and-drop or browse with live preview.</p>
+                <strong>Upload a case image</strong>
+                <p>Drag and drop an image or browse from your device.</p>
               </div>
             </div>
             <div className="workflow-item">
               <span>02</span>
               <div>
-                <strong>Add context</strong>
-                <p>Use note templates, then customize clinical detail.</p>
+                <strong>Add short notes</strong>
+                <p>Include location, symptoms, history, or recent change.</p>
               </div>
             </div>
             <div className="workflow-item">
               <span>03</span>
               <div>
-                <strong>Review triage output</strong>
-                <p>Read the risk summary, confidence, and supporting signals.</p>
+                <strong>Review the triage summary</strong>
+                <p>See the risk class, confidence, and supporting breakdown.</p>
               </div>
             </div>
           </div>
