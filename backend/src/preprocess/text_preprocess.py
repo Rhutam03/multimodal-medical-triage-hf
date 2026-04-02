@@ -1,18 +1,23 @@
-import csv
+from __future__ import annotations
+
 import json
 import re
 from collections import Counter
 from pathlib import Path
 
+import pandas as pd
+
 PAD_TOKEN = "<PAD>"
 UNK_TOKEN = "<UNK>"
-MAX_LEN = 20
 
 
-def preprocess_text(text: str) -> str:
-    if not text or not text.strip():
-        return "no clinical description provided"
-    return text.strip().lower()
+def preprocess_text(text: str | None) -> str:
+    text = "" if text is None else str(text)
+    text = text.strip().lower()
+    text = text.replace("_", " ")
+    text = re.sub(r"[^a-z0-9\s\.]", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 
 def tokenize(text: str) -> list[str]:
@@ -38,7 +43,24 @@ def build_vocab(texts: list[str], min_freq: int = 1) -> dict[str, int]:
     return vocab
 
 
-def encode_text(text: str, vocab: dict[str, int], max_len: int = MAX_LEN) -> list[int]:
+def build_vocab_from_csv(
+    csv_path: str | Path,
+    text_column: str = "text",
+    min_freq: int = 1,
+) -> dict[str, int]:
+    df = pd.read_csv(csv_path)
+
+    if text_column not in df.columns:
+        raise ValueError(
+            f"Column '{text_column}' not found in {csv_path}. "
+            f"Available columns: {list(df.columns)}"
+        )
+
+    texts = df[text_column].fillna("").astype(str).tolist()
+    return build_vocab(texts, min_freq=min_freq)
+
+
+def encode_text(text: str, vocab: dict[str, int], max_len: int) -> list[int]:
     tokens = tokenize(text)
     ids = [vocab.get(tok, vocab[UNK_TOKEN]) for tok in tokens]
 
@@ -50,67 +72,19 @@ def encode_text(text: str, vocab: dict[str, int], max_len: int = MAX_LEN) -> lis
     return ids
 
 
-def save_vocab(vocab: dict[str, int], path: str) -> None:
-    out_path = Path(path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+def save_vocab(vocab: dict[str, int], path: str | Path) -> None:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(vocab, f, indent=2)
-
-
-def load_vocab(path: str) -> dict[str, int]:
-    vocab_path = Path(path)
-
-    if not vocab_path.exists():
-        raise FileNotFoundError(f"Vocab file not found: {vocab_path}")
-
-    if vocab_path.stat().st_size == 0:
-        raise ValueError(f"Vocab file is empty: {vocab_path}")
-
-    with open(vocab_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    if not isinstance(data, dict):
-        raise ValueError(f"Vocab file must contain a JSON object: {vocab_path}")
-
-    if PAD_TOKEN not in data or UNK_TOKEN not in data:
-        raise ValueError(
-            f"Vocab file is missing required tokens {PAD_TOKEN} and/or {UNK_TOKEN}: {vocab_path}"
-        )
-
-    return {str(k): int(v) for k, v in data.items()}
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(vocab, f, ensure_ascii=False, indent=2)
 
 
-def build_vocab_from_csv(labels_csv_path: str, text_column: str | None = None) -> dict[str, int]:
-    csv_path = Path(labels_csv_path)
+def load_vocab(path: str | Path) -> dict[str, int]:
+    with open(path, "r", encoding="utf-8") as f:
+        vocab = json.load(f)
 
-    if not csv_path.exists():
-        raise FileNotFoundError(f"Labels CSV not found: {csv_path}")
+    if not isinstance(vocab, dict) or not vocab:
+        raise ValueError(f"Invalid vocab file: {path}")
 
-    texts: list[str] = []
-
-    with open(csv_path, "r", encoding="utf-8", newline="") as f:
-        reader = csv.DictReader(f)
-
-        if reader.fieldnames is None:
-            raise ValueError(f"No header found in CSV: {csv_path}")
-
-        candidate_columns = ["text", "notes", "clinical_notes", "description"]
-        chosen_column = text_column
-
-        if chosen_column is None:
-            for col in candidate_columns:
-                if col in reader.fieldnames:
-                    chosen_column = col
-                    break
-
-        if chosen_column is None:
-            raise ValueError(
-                f"Could not find a usable text column in {csv_path}. "
-                f"Found columns: {reader.fieldnames}"
-            )
-
-        for row in reader:
-            texts.append((row.get(chosen_column) or "").strip())
-
-    return build_vocab(texts)
+    return vocab
