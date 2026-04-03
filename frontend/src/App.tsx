@@ -14,7 +14,7 @@ import {
   type PredictionResponse,
 } from "./api";
 
-const APP_NAME = "SkinSight Triage";
+const APP_NAME = "Multimodal Dermatology Triage";
 
 const NOTE_TEMPLATES: string[] = [
   "55-year-old female with lesion on anterior torso. Slow change in pigmentation over the last 2 months. Mild itching reported. No fever.",
