@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 CURRENT_FILE = Path(__file__).resolve()
-BACKEND_DIR = CURRENT_FILE.parents[2]  # .../backend
+BACKEND_DIR = CURRENT_FILE.parents[2]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 

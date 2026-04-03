@@ -33,6 +33,8 @@ elif torch.cuda.is_available():
 else:
     DEVICE = torch.device("cpu")
 
+TEMPERATURE = 1.5
+
 WEIGHTS_CANDIDATES = [
     BACKEND_DIR / "artifacts" / "model_weights.pth",
     BACKEND_DIR / "weights" / "model_weights.pth",
@@ -121,7 +123,6 @@ def _load_or_rebuild_vocab(
     vocab_candidates: list[Path],
     labels_csv_candidates: list[Path],
 ) -> tuple[dict[str, int], Path | None, Path | None]:
-    # First: try loading existing vocab.json. If this works, labels.csv is not needed.
     for vocab_path in vocab_candidates:
         if vocab_path.exists():
             try:
@@ -132,7 +133,6 @@ def _load_or_rebuild_vocab(
             except Exception as exc:
                 print(f"Failed to load vocab from {vocab_path}: {exc}")
 
-    # Fallback: rebuild from labels.csv only if vocab is unavailable.
     labels_csv_path = _find_existing_file(labels_csv_candidates)
     if labels_csv_path is None:
         raise FileNotFoundError(
@@ -255,10 +255,11 @@ def predict_from_inputs(
 
     with torch.no_grad():
         logits = model(image_tensor, token_ids)
-        probs = F.softmax(logits, dim=1)[0].detach().cpu().numpy()
+        scaled_logits = logits / TEMPERATURE
+        probs = F.softmax(scaled_logits, dim=1)[0].detach().cpu().numpy()
 
     pred_idx = int(np.argmax(probs))
-    confidence = float(probs[pred_idx])
+    confidence = min(float(probs[pred_idx]), 0.999)
 
     return {
         "predicted_index": pred_idx,

@@ -14,12 +14,12 @@ import {
   type PredictionResponse,
 } from "./api";
 
-const APP_NAME = "Dermatology Triage Assistant";
+const APP_NAME = "SkinSight Triage";
 
 const NOTE_TEMPLATES: string[] = [
-  "55 year old female with lesion on anterior torso. Slow change in pigmentation over the last 2 months. Mild itching reported. No fever.",
-  "42 year old male with irregular pigmented lesion on upper back. Recent increase in size. No bleeding. Family history of skin cancer.",
-  "29 year old female with small lesion on forearm. Stable appearance. No pain, ulceration, or discharge. Monitoring requested.",
+  "55-year-old female with lesion on anterior torso. Slow change in pigmentation over the last 2 months. Mild itching reported. No fever.",
+  "42-year-old male with irregular pigmented lesion on upper back. Recent increase in size. No bleeding. Family history of skin cancer.",
+  "29-year-old female with small lesion on forearm. Stable appearance. No pain, ulceration, or discharge. Monitoring requested.",
 ];
 
 const CLINICAL_HINTS: string[] = [
@@ -29,36 +29,58 @@ const CLINICAL_HINTS: string[] = [
   "Relevant patient history or family history",
 ];
 
-const RISK_ORDER = ["Low Risk", "Medium Risk", "High Risk"];
+const RISK_ORDER = ["Low Risk", "Medium Risk", "High Risk"] as const;
 
-function formatPercent(value: number | undefined): string {
+function formatPercent(value: number | undefined, capAt = 99.9): string {
+  if (typeof value !== "number" || Number.isNaN(value)) return "0.0%";
+
+  const percent = value * 100;
+  if (percent >= 100) return `${capAt.toFixed(1)}%`;
+  return `${percent.toFixed(1)}%`;
+}
+
+function formatRawPercent(value: number | undefined): string {
   if (typeof value !== "number" || Number.isNaN(value)) return "0.0%";
   return `${(value * 100).toFixed(1)}%`;
 }
 
-function formatConfidence(value: number | undefined): string {
-  return formatPercent(value);
-}
-
-function sortProbabilityEntries(
+function buildProbabilityEntries(
   probabilities: Record<string, number> | undefined,
 ): Array<[string, number]> {
-  if (!probabilities) return [];
-  return Object.entries(probabilities).sort((a, b) => {
-    const aIndex = RISK_ORDER.indexOf(a[0]);
-    const bIndex = RISK_ORDER.indexOf(b[0]);
-    const safeA = aIndex === -1 ? 999 : aIndex;
-    const safeB = bIndex === -1 ? 999 : bIndex;
-    return safeA - safeB;
-  });
+  const safe = probabilities ?? {};
+  return RISK_ORDER.map((label) => [label, safe[label] ?? 0]) as Array<[string, number]>;
 }
 
 function riskToneClass(risk: string | undefined): string {
   if (!risk) return "tone-neutral";
-  if (risk.toLowerCase().includes("high")) return "tone-high";
-  if (risk.toLowerCase().includes("medium")) return "tone-medium";
-  if (risk.toLowerCase().includes("low")) return "tone-low";
+  const normalized = risk.toLowerCase();
+
+  if (normalized.includes("high")) return "tone-high";
+  if (normalized.includes("medium")) return "tone-medium";
+  if (normalized.includes("low")) return "tone-low";
+
   return "tone-neutral";
+}
+
+function getHeadline(risk: string | undefined): string {
+  if (!risk) return "No prediction yet";
+  if (risk === "High Risk") return "Higher-priority triage signal";
+  if (risk === "Medium Risk") return "Moderate-priority triage signal";
+  return "Lower-priority triage signal";
+}
+
+function getSummaryCopy(risk: string | undefined): string {
+  if (!risk) return "Submit an image and supporting notes to generate a triage summary.";
+
+  if (risk === "High Risk") {
+    return "The current inputs suggest a higher-risk pattern and should be escalated for prompt clinical review.";
+  }
+
+  if (risk === "Medium Risk") {
+    return "The current inputs suggest an intermediate-risk pattern that still warrants clinical evaluation.";
+  }
+
+  return "The current inputs suggest a lower-risk pattern, but this should still be interpreted in context by a clinician.";
 }
 
 function buildLocalHistoryItem(
@@ -97,6 +119,7 @@ export default function App() {
 
     async function loadHistory() {
       setIsLoadingHistory(true);
+
       try {
         const items = await getPredictions();
         if (!cancelled) {
@@ -129,19 +152,17 @@ export default function App() {
     const objectUrl = URL.createObjectURL(selectedFile);
     setPreviewUrl(objectUrl);
 
-    return () => {
-      URL.revokeObjectURL(objectUrl);
-    };
+    return () => URL.revokeObjectURL(objectUrl);
   }, [selectedFile]);
 
   const probabilityEntries = useMemo(
-    () => sortProbabilityEntries(prediction?.probabilities),
+    () => buildProbabilityEntries(prediction?.probabilities),
     [prediction],
   );
 
   const selectedHistoryItem = useMemo(() => {
     if (!selectedHistoryId) return null;
-    return history.find((item: PredictionHistoryItem) => item.id === selectedHistoryId) ?? null;
+    return history.find((item) => item.id === selectedHistoryId) ?? null;
   }, [history, selectedHistoryId]);
 
   function openFilePicker() {
@@ -178,6 +199,7 @@ export default function App() {
 
   function handleTemplateClick(template: string) {
     setNoteText(template);
+    setError("");
   }
 
   function clearNotes() {
@@ -187,10 +209,12 @@ export default function App() {
 
   function resetCase() {
     setSelectedFile(null);
-    setPrediction(null);
+    setPreviewUrl("");
     setNoteText("");
+    setPrediction(null);
     setError("");
     setSelectedHistoryId(null);
+
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -201,7 +225,7 @@ export default function App() {
       const items = await getPredictions();
       setHistory(items);
     } catch {
-      
+      // keep current history if refresh fails
     }
   }
 
@@ -228,7 +252,7 @@ export default function App() {
         await refreshHistory();
       } catch {
         const localItem = buildLocalHistoryItem(response, selectedFile.name, noteText);
-        setHistory((prev: PredictionHistoryItem[]) => [localItem, ...prev].slice(0, 25));
+        setHistory((prev) => [localItem, ...prev].slice(0, 25));
       }
     } catch (err: unknown) {
       const message =
@@ -259,7 +283,8 @@ export default function App() {
           <div className="eyebrow">Multimodal dermatology triage</div>
           <h1>{APP_NAME}</h1>
           <p className="subtle">
-            Upload an image and supporting notes to generate a three-level triage summary.
+            Upload a lesion image, add any helpful clinical context, and review a
+            three-level triage summary with probability breakdown.
           </p>
         </div>
       </div>
@@ -319,7 +344,7 @@ export default function App() {
             <div className="template-row">
               <span className="section-label">Quick note templates</span>
               <div className="chip-row">
-                {NOTE_TEMPLATES.map((template: string, index: number) => (
+                {NOTE_TEMPLATES.map((template, index) => (
                   <button
                     key={`template-${index}`}
                     type="button"
@@ -359,7 +384,7 @@ export default function App() {
               <div className="eyebrow">Helpful inputs</div>
               <h3>What makes a stronger request?</h3>
               <ul>
-                {CLINICAL_HINTS.map((hint: string) => (
+                {CLINICAL_HINTS.map((hint) => (
                   <li key={hint}>{hint}</li>
                 ))}
               </ul>
@@ -387,15 +412,15 @@ export default function App() {
               <div className="feature-grid">
                 <div className="feature-card">
                   <h4>Readable output</h4>
-                  <p>Clear risk status with human-friendly explanation</p>
+                  <p>Clear risk status with natural, human-friendly explanation.</p>
                 </div>
                 <div className="feature-card">
                   <h4>Explainability</h4>
-                  <p>Probability bars instead of raw JSON blocks</p>
+                  <p>Probability bars make the output easier to interpret quickly.</p>
                 </div>
                 <div className="feature-card">
                   <h4>Reusable history</h4>
-                  <p>Quick access to recent cases and saved notes</p>
+                  <p>Quick access to recent cases and saved supporting notes.</p>
                 </div>
               </div>
             </div>
@@ -405,25 +430,15 @@ export default function App() {
                 <div className="summary-header">
                   <span className="risk-pill">{prediction.triage_level}</span>
                   <div className="confidence-ring">
-                    <strong>{formatConfidence(prediction.confidence)}</strong>
-                    <span>confidence</span>
+                    <strong>{formatPercent(prediction.confidence)}</strong>
+                    <span>model confidence</span>
                   </div>
                 </div>
 
-                <h3>
-                  {prediction.triage_level === "High Risk"
-                    ? "Higher-priority triage signal"
-                    : prediction.triage_level === "Medium Risk"
-                    ? "Moderate-priority triage signal"
-                    : "Lower-priority triage signal"}
-                </h3>
-
-                <p>
-                  {prediction.triage_level === "High Risk"
-                    ? "The current inputs suggest a higher-risk pattern and should be escalated for prompt clinical review."
-                    : prediction.triage_level === "Medium Risk"
-                    ? "The current inputs suggest an intermediate-risk pattern that still warrants clinical evaluation."
-                    : "The current inputs suggest a lower-risk pattern, but this should still be interpreted in context by a clinician."}
+                <h3>{getHeadline(prediction.triage_level)}</h3>
+                <p>{getSummaryCopy(prediction.triage_level)}</p>
+                <p className="subtle">
+                  This is model confidence, not a clinical diagnosis or absolute certainty.
                 </p>
               </div>
 
@@ -449,11 +464,11 @@ export default function App() {
                 </div>
 
                 <div className="probability-list">
-                  {probabilityEntries.map(([label, value]: [string, number]) => (
+                  {probabilityEntries.map(([label, value]) => (
                     <div key={label} className="probability-item">
                       <div className="probability-row">
                         <span>{label}</span>
-                        <strong>{formatPercent(value)}</strong>
+                        <strong>{formatRawPercent(value)}</strong>
                       </div>
                       <div className="progress-track">
                         <div
@@ -467,11 +482,11 @@ export default function App() {
               </div>
 
               <div className="notes-card">
-                <h4>Model output notes</h4>
+                <h4>Case text used by the model</h4>
                 <p>
                   {prediction.text_used
                     ? prediction.text_used
-                    : "No normalized note text returned by the backend."}
+                    : noteText || "No normalized note text returned by the backend."}
                 </p>
               </div>
             </div>
@@ -502,7 +517,7 @@ export default function App() {
           <p className="subtle">No saved predictions yet.</p>
         ) : (
           <div className="history-list">
-            {history.map((item: PredictionHistoryItem) => (
+            {history.map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -518,7 +533,7 @@ export default function App() {
 
                 <div className="history-meta">
                   <span>{new Date(item.created_at).toLocaleString()}</span>
-                  <span>{formatConfidence(item.confidence)}</span>
+                  <span>{formatPercent(item.confidence)}</span>
                 </div>
 
                 <p className="history-note">{item.note_text || "No note text saved."}</p>

@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 CURRENT_FILE = Path(__file__).resolve()
-BACKEND_DIR = CURRENT_FILE.parents[2]  # .../backend
+BACKEND_DIR = CURRENT_FILE.parents[2]
 REPO_ROOT = BACKEND_DIR.parent
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
@@ -95,10 +95,6 @@ def compute_class_weights(labels):
 
 
 def maybe_make_subset(df: pd.DataFrame) -> tuple[pd.DataFrame, Path]:
-    """
-    Optional fast debug mode.
-    Use TRIAGE_SUBSET=512 or 1024 to verify training is moving.
-    """
     if SUBSET_SIZE <= 0 or SUBSET_SIZE >= len(df):
         return df.reset_index(drop=True), LABELS_CSV
 

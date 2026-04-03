@@ -34,6 +34,16 @@ def root():
         "version": "1.0.1-runtime-fix",
         "health": "/health",
         "docs": "/docs",
+        "predict_routes": [
+            "/api/predict",
+            "/predict",
+            "/api/analyze",
+            "/analyze",
+        ],
+        "history_routes": [
+            "/api/predictions",
+            "/predictions",
+        ],
     }
 
 
