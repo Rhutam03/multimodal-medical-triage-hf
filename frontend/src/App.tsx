@@ -14,12 +14,12 @@ import {
   type PredictionResponse,
 } from "./api";
 
-const APP_NAME = "SkinSight Triage";
+const APP_NAME = "Dermatology Triage Assistant";
 
 const NOTE_TEMPLATES: string[] = [
-  "55-year-old female with lesion on anterior torso. Slow change in pigmentation over the last 2 months. Mild itching reported. No fever.",
-  "42-year-old male with irregular pigmented lesion on upper back. Recent increase in size. No bleeding. Family history of skin cancer.",
-  "29-year-old female with small lesion on forearm. Stable appearance. No pain, ulceration, or discharge. Monitoring requested.",
+  "55 year old female with lesion on anterior torso. Slow change in pigmentation over the last 2 months. Mild itching reported. No fever.",
+  "42 year old male with irregular pigmented lesion on upper back. Recent increase in size. No bleeding. Family history of skin cancer.",
+  "29 year old female with small lesion on forearm. Stable appearance. No pain, ulceration, or discharge. Monitoring requested.",
 ];
 
 const CLINICAL_HINTS: string[] = [
@@ -201,7 +201,7 @@ export default function App() {
       const items = await getPredictions();
       setHistory(items);
     } catch {
-      // keep current history if refresh fails
+      
     }
   }
 
