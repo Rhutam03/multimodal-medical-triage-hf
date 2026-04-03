@@ -73,14 +73,55 @@ function getSummaryCopy(risk: string | undefined): string {
   if (!risk) return "Submit an image and supporting notes to generate a triage summary.";
 
   if (risk === "High Risk") {
-    return "The current inputs suggest a higher-risk pattern and should be escalated for prompt clinical review.";
+    return "The current inputs suggest a higher-risk pattern and this case should be reviewed promptly by a clinician.";
   }
 
   if (risk === "Medium Risk") {
-    return "The current inputs suggest an intermediate-risk pattern that still warrants clinical evaluation.";
+    return "The current inputs suggest an intermediate-risk pattern. This case still deserves clinical evaluation.";
   }
 
-  return "The current inputs suggest a lower-risk pattern, but this should still be interpreted in context by a clinician.";
+  return "The current inputs suggest a lower-risk pattern, but the result should still be interpreted in clinical context.";
+}
+
+function getPlainLanguageMeaning(risk: string | undefined): string {
+  if (!risk) return "";
+
+  if (risk === "High Risk") {
+    return "This result means the case looks more concerning than average and should be prioritized for follow-up.";
+  }
+
+  if (risk === "Medium Risk") {
+    return "This result means the case is not the lowest-priority group and should still be reviewed carefully.";
+  }
+
+  return "This result means the case appears less concerning than the other groups in this model, but it is not a diagnosis.";
+}
+
+function cleanDisplayText(text: string | undefined, fallbackNote: string): string {
+  const value = (text ?? "").trim();
+
+  if (!value) {
+    return fallbackNote.trim()
+      ? fallbackNote.trim()
+      : "No supporting notes were added, so this result was based mainly on the image.";
+  }
+
+  const normalized = value.toLowerCase();
+  const looksMostlyUnknown =
+    normalized.includes("age unknown") &&
+    normalized.includes("sex unknown") &&
+    normalized.includes("site unknown") &&
+    normalized.includes("symptoms unknown") &&
+    normalized.includes("change unknown") &&
+    normalized.includes("history unknown");
+
+  if (looksMostlyUnknown) {
+    return fallbackNote.trim()
+      ? fallbackNote.trim()
+      : "No supporting notes were added, so this result was based mainly on the image.";
+  }
+
+  return value;
 }
 
 function buildLocalHistoryItem(
@@ -431,36 +472,21 @@ export default function App() {
                   <span className="risk-pill">{prediction.triage_level}</span>
                   <div className="confidence-ring">
                     <strong>{formatPercent(prediction.confidence)}</strong>
-                    <span>model confidence</span>
+                    <span>confidence score</span>
                   </div>
                 </div>
 
                 <h3>{getHeadline(prediction.triage_level)}</h3>
                 <p>{getSummaryCopy(prediction.triage_level)}</p>
                 <p className="subtle">
-                  This is model confidence, not a clinical diagnosis or absolute certainty.
+                  {getPlainLanguageMeaning(prediction.triage_level)}
                 </p>
-              </div>
-
-              <div className="stats-grid">
-                <div className="stat-card">
-                  <span className="stat-label">Request ID</span>
-                  <strong>{prediction.request_id ?? "N/A"}</strong>
-                </div>
-                <div className="stat-card">
-                  <span className="stat-label">Model device</span>
-                  <strong>{prediction.model_info?.device ?? "N/A"}</strong>
-                </div>
-                <div className="stat-card">
-                  <span className="stat-label">Max token length</span>
-                  <strong>{prediction.model_info?.max_len ?? "N/A"}</strong>
-                </div>
               </div>
 
               <div className="probability-card">
                 <div className="probability-header">
-                  <h4>Risk distribution</h4>
-                  <span>Class probabilities</span>
+                  <h4>Estimated risk breakdown</h4>
+                  <span>A relative comparison across the three triage groups</span>
                 </div>
 
                 <div className="probability-list">
@@ -482,12 +508,8 @@ export default function App() {
               </div>
 
               <div className="notes-card">
-                <h4>Case text used by the model</h4>
-                <p>
-                  {prediction.text_used
-                    ? prediction.text_used
-                    : noteText || "No normalized note text returned by the backend."}
-                </p>
+                <h4>Clinical context considered</h4>
+                <p>{cleanDisplayText(prediction.text_used, noteText)}</p>
               </div>
             </div>
           )}
