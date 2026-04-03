@@ -61,12 +61,6 @@ async def predict_route(
     sex: str = Form(""),
     site: str = Form(""),
 ):
-    """
-    Backward-compatible with multiple frontend payload styles:
-    - file OR image
-    - note_text OR notes
-    - /api/predict OR /predict OR /api/analyze OR /analyze
-    """
     try:
         upload = file or image
         if upload is None:

@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Any
 
 CURRENT_FILE = Path(__file__).resolve()
-BACKEND_DIR = CURRENT_FILE.parents[2]   
-REPO_ROOT = CURRENT_FILE.parents[3]     
+BACKEND_DIR = CURRENT_FILE.parents[2]   # .../backend or /app in container
+REPO_ROOT = BACKEND_DIR.parent
+
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
@@ -35,6 +36,7 @@ else:
 WEIGHTS_CANDIDATES = [
     BACKEND_DIR / "artifacts" / "model_weights.pth",
     BACKEND_DIR / "weights" / "model_weights.pth",
+    REPO_ROOT / "backend" / "artifacts" / "model_weights.pth",
     REPO_ROOT / "artifacts" / "model_weights.pth",
     REPO_ROOT / "weights" / "model_weights.pth",
 ]
@@ -42,12 +44,14 @@ WEIGHTS_CANDIDATES = [
 VOCAB_CANDIDATES = [
     BACKEND_DIR / "artifacts" / "vocab.json",
     BACKEND_DIR / "weights" / "vocab.json",
+    REPO_ROOT / "backend" / "artifacts" / "vocab.json",
     REPO_ROOT / "artifacts" / "vocab.json",
     REPO_ROOT / "weights" / "vocab.json",
 ]
 
 LABELS_CSV_CANDIDATES = [
     BACKEND_DIR / "data" / "labels.csv",
+    REPO_ROOT / "backend" / "data" / "labels.csv",
     REPO_ROOT / "data" / "labels.csv",
 ]
 
@@ -124,24 +128,26 @@ def _extract_state_dict_and_max_len(
 def _load_or_rebuild_vocab(
     vocab_candidates: list[Path],
     labels_csv_candidates: list[Path],
-) -> tuple[dict[str, int], Path, Path]:
+) -> tuple[dict[str, int], Path | None, Path | None]:
+    # First choice: load existing vocab.json. If this works, labels.csv is NOT required.
     for vocab_path in vocab_candidates:
         if vocab_path.exists():
             try:
                 vocab = load_vocab(vocab_path)
                 if isinstance(vocab, dict) and len(vocab) > 0:
-                    labels_csv_path = _find_existing_file(labels_csv_candidates)
-                    if labels_csv_path is None:
-                        raise FileNotFoundError("labels.csv not found while loading vocab.")
                     print(f"Loaded vocab from: {vocab_path}")
-                    return vocab, vocab_path, labels_csv_path
+                    return vocab, vocab_path, None
             except Exception as exc:
                 print(f"Failed to load vocab from {vocab_path}: {exc}")
 
+    # Fallback: rebuild vocab from labels.csv if vocab.json is unavailable or invalid.
     labels_csv_path = _find_existing_file(labels_csv_candidates)
     if labels_csv_path is None:
         raise FileNotFoundError(
-            "Could not find labels.csv in any expected location:\n"
+            "Could not find vocab.json or labels.csv in any expected location.\n"
+            "Checked vocab paths:\n"
+            + "\n".join(str(p) for p in vocab_candidates)
+            + "\nChecked labels paths:\n"
             + "\n".join(str(p) for p in labels_csv_candidates)
         )
 
@@ -157,9 +163,11 @@ def _load_or_rebuild_vocab(
 def _clean_field(value: str | int | None, unknown: str = "unknown") -> str:
     if value is None:
         return unknown
+
     value = str(value).strip()
     if not value:
         return unknown
+
     cleaned = preprocess_text(value)
     return cleaned if cleaned else unknown
 
