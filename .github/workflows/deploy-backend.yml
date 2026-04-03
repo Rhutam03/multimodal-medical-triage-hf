@@ -20,37 +20,65 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository with Git LFS
         uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Pull Git LFS objects
+        run: |
+          git lfs install
+          git lfs pull
+
+      - name: Verify backend artifacts
+        run: |
+          echo "Listing backend/artifacts"
+          ls -lh backend/artifacts || true
+
+          test -f backend/artifacts/model_weights.pth
+          test -f backend/artifacts/vocab.json
+
+          if head -c 200 backend/artifacts/model_weights.pth | grep -q "version https://git-lfs.github.com/spec/v1"; then
+            echo "ERROR: backend/artifacts/model_weights.pth is still a Git LFS pointer, not the real model."
+            exit 1
+          fi
+
+          SIZE=$(wc -c < backend/artifacts/model_weights.pth)
+          echo "Model size: ${SIZE} bytes"
+
+          if [ "$SIZE" -lt 1000000 ]; then
+            echo "ERROR: model_weights.pth is unexpectedly small."
+            exit 1
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_GITHUB_ROLE_ARN }}
-          aws-region: us-east-2
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Set image tags
+        run: |
+          echo "IMAGE_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
       - name: Build backend image
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ env.ECR_REPOSITORY }}
-          IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build \
-            --platform linux/amd64 \
-            -f backend/Dockerfile \
-            -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
-            -t $REGISTRY/$REPOSITORY:latest \
+            -t $ECR_REPOSITORY:$IMAGE_TAG \
+            -t $ECR_REPOSITORY:latest \
             backend
 
-      - name: Push backend image
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ env.ECR_REPOSITORY }}
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Tag backend image for ECR
         run: |
-          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
-          docker push $REGISTRY/$REPOSITORY:latest
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG
+          docker tag $ECR_REPOSITORY:latest ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:latest
+
+      - name: Push backend image
+        run: |
+          docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:latest
