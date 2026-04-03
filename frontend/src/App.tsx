@@ -16,296 +16,315 @@ import {
 
 const APP_NAME = "SkinSight Triage";
 
-const NOTE_TEMPLATES = [
-  "55-year-old female with lesion on anterior torso. Slow change in pigmentation over the last 2 months. No fever. Mild itching reported.",
+const NOTE_TEMPLATES: string[] = [
+  "55-year-old female with lesion on anterior torso. Slow change in pigmentation over the last 2 months. Mild itching reported. No fever.",
   "42-year-old male with irregular pigmented lesion on upper back. Recent increase in size. No bleeding. Family history of skin cancer.",
   "29-year-old female with small lesion on forearm. Stable appearance. No pain, ulceration, or discharge. Monitoring requested.",
 ];
 
-const CLINICAL_HINTS = [
+const CLINICAL_HINTS: string[] = [
   "Where the lesion is located",
   "Whether it recently changed in size or color",
   "Pain, itching, bleeding, or discharge",
   "Relevant patient history or family history",
 ];
 
-function formatPercent(value: number): string {
+const RISK_ORDER = ["Low Risk", "Medium Risk", "High Risk"];
+
+function formatPercent(value: number | undefined): string {
+  if (typeof value !== "number" || Number.isNaN(value)) return "0.0%";
   return `${(value * 100).toFixed(1)}%`;
 }
 
-function formatTimestamp(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
+function formatConfidence(value: number | undefined): string {
+  return formatPercent(value);
+}
 
-  return date.toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
+function sortProbabilityEntries(
+  probabilities: Record<string, number> | undefined,
+): Array<[string, number]> {
+  if (!probabilities) return [];
+  return Object.entries(probabilities).sort((a, b) => {
+    const aIndex = RISK_ORDER.indexOf(a[0]);
+    const bIndex = RISK_ORDER.indexOf(b[0]);
+    const safeA = aIndex === -1 ? 999 : aIndex;
+    const safeB = bIndex === -1 ? 999 : bIndex;
+    return safeA - safeB;
   });
 }
 
-function getRiskMeta(prediction?: string): {
-  toneClass: string;
-  badgeClass: string;
-  title: string;
-  summary: string;
-} {
-  const normalized = (prediction || "").toLowerCase();
+function riskToneClass(risk: string | undefined): string {
+  if (!risk) return "tone-neutral";
+  if (risk.toLowerCase().includes("high")) return "tone-high";
+  if (risk.toLowerCase().includes("medium")) return "tone-medium";
+  if (risk.toLowerCase().includes("low")) return "tone-low";
+  return "tone-neutral";
+}
 
-  if (normalized.includes("high")) {
-    return {
-      toneClass: "tone-high",
-      badgeClass: "badge-high",
-      title: "Needs faster follow-up",
-      summary:
-        "The model sees stronger risk signals in this case. Use this as a prioritization aid and pair it with clinical judgment.",
-    };
-  }
-
-  if (normalized.includes("medium")) {
-    return {
-      toneClass: "tone-medium",
-      badgeClass: "badge-medium",
-      title: "Worth a closer review",
-      summary:
-        "This case sits in the middle range and may benefit from additional review, better notes, or follow-up imaging.",
-    };
-  }
-
+function buildLocalHistoryItem(
+  response: PredictionResponse,
+  fileName: string,
+  noteText: string,
+): PredictionHistoryItem {
   return {
-    toneClass: "tone-low",
-    badgeClass: "badge-low",
-    title: "Lower-priority triage signal",
-    summary:
-      "The current inputs suggest a lower-risk pattern, but this should still be interpreted in context by a clinician.",
+    id: response.request_id ?? `local-${Date.now()}`,
+    created_at: new Date().toISOString(),
+    image_name: fileName,
+    note_text: noteText,
+    triage_level: response.triage_level,
+    confidence: response.confidence,
+    probabilities: response.probabilities,
+    predicted_index: response.predicted_index,
   };
 }
 
-function App() {
+export default function App() {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [noteText, setNoteText] = useState<string>("");
+  const [prediction, setPrediction] = useState<PredictionResponse | null>(null);
+  const [history, setHistory] = useState<PredictionHistoryItem[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [image, setImage] = useState<File | null>(null);
-  const [notes, setNotes] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
-  const [result, setResult] = useState<PredictionResponse | null>(null);
-  const [history, setHistory] = useState<PredictionHistoryItem[]>([]);
-  const [error, setError] = useState<string>("");
-  const [dragActive, setDragActive] = useState<boolean>(false);
-  const [previewUrl, setPreviewUrl] = useState<string>("");
-
-  async function loadHistory(): Promise<void> {
-    try {
-      const data = await getPredictions();
-      setHistory(data.items || []);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
   useEffect(() => {
-    document.title = APP_NAME;
+    let cancelled = false;
+
+    async function loadHistory() {
+      setIsLoadingHistory(true);
+      try {
+        const items = await getPredictions();
+        if (!cancelled) {
+          setHistory(items);
+        }
+      } catch {
+        if (!cancelled) {
+          setHistory([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingHistory(false);
+        }
+      }
+    }
+
     void loadHistory();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    if (!image) {
+    if (!selectedFile) {
       setPreviewUrl("");
       return;
     }
 
-    const nextUrl = URL.createObjectURL(image);
-    setPreviewUrl(nextUrl);
+    const objectUrl = URL.createObjectURL(selectedFile);
+    setPreviewUrl(objectUrl);
 
     return () => {
-      URL.revokeObjectURL(nextUrl);
+      URL.revokeObjectURL(objectUrl);
     };
-  }, [image]);
+  }, [selectedFile]);
 
-  const sortedProbabilities = useMemo(() => {
-    if (!result) return [];
-    return Object.entries(result.probabilities).sort((a, b) => b[1] - a[1]);
-  }, [result]);
+  const probabilityEntries = useMemo(
+    () => sortProbabilityEntries(prediction?.probabilities),
+    [prediction],
+  );
 
-  const riskMeta = getRiskMeta(result?.predicted_class);
+  const selectedHistoryItem = useMemo(() => {
+    if (!selectedHistoryId) return null;
+    return history.find((item: PredictionHistoryItem) => item.id === selectedHistoryId) ?? null;
+  }, [history, selectedHistoryId]);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+  function openFilePicker() {
+    fileInputRef.current?.click();
+  }
+
+  function applyFile(file: File | null) {
+    if (!file) return;
+    setSelectedFile(file);
+    setError("");
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    applyFile(file);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
-
-    if (!image) {
-      setError("Please upload a lesion image before running triage.");
-      return;
-    }
-
-    setError("");
-    setLoading(true);
-
-    try {
-      const data = await predict(image, notes);
-      setResult(data);
-      await loadHistory();
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Prediction failed.";
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
+    setIsDragging(false);
+    const file = event.dataTransfer.files?.[0] ?? null;
+    applyFile(file);
   }
 
-  function handleFileSelection(file: File | null): void {
-    if (!file) {
-      setImage(null);
-      return;
-    }
-
-    if (!file.type.startsWith("image/")) {
-      setError("Only image files are supported.");
-      return;
-    }
-
-    setError("");
-    setImage(file);
-  }
-
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>): void {
-    const file = event.target.files?.[0] || null;
-    handleFileSelection(file);
-  }
-
-  function handleDrop(event: DragEvent<HTMLLabelElement>): void {
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
-    setDragActive(false);
-    const file = event.dataTransfer.files?.[0] || null;
-    handleFileSelection(file);
+    setIsDragging(true);
   }
 
-  function resetCase(): void {
-    setImage(null);
-    setNotes("");
-    setError("");
-    setResult(null);
-    setDragActive(false);
+  function handleDragLeave(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+  }
 
+  function handleTemplateClick(template: string) {
+    setNoteText(template);
+  }
+
+  function clearNotes() {
+    setNoteText("");
+    setError("");
+  }
+
+  function resetCase() {
+    setSelectedFile(null);
+    setPrediction(null);
+    setNoteText("");
+    setError("");
+    setSelectedHistoryId(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   }
 
-  function reuseHistoryItem(item: PredictionHistoryItem): void {
-    setNotes(item.notes || "");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  async function refreshHistory() {
+    try {
+      const items = await getPredictions();
+      setHistory(items);
+    } catch {
+      // keep current history if refresh fails
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedFile) {
+      setError("Please upload an image before analyzing the case.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError("");
+
+    try {
+      const response = await predict({
+        file: selectedFile,
+        noteText,
+      });
+
+      setPrediction(response);
+
+      try {
+        await refreshHistory();
+      } catch {
+        const localItem = buildLocalHistoryItem(response, selectedFile.name, noteText);
+        setHistory((prev: PredictionHistoryItem[]) => [localItem, ...prev].slice(0, 25));
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Unable to analyze this case right now.";
+      setError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function loadHistoryItem(item: PredictionHistoryItem) {
+    setSelectedHistoryId(item.id);
+    setPrediction({
+      predicted_index: item.predicted_index ?? 0,
+      triage_level: item.triage_level,
+      confidence: item.confidence,
+      probabilities: item.probabilities,
+      request_id: item.id,
+    });
+    setNoteText(item.note_text ?? "");
+    setError("");
   }
 
   return (
     <div className="app-shell">
-      <div className="animated-bg">
-        <span className="orb orb-one" />
-        <span className="orb orb-two" />
-        <span className="orb orb-three" />
-        <span className="grid-glow" />
-      </div>
-
-      <header className="topbar">
-        <div className="brand">
-          <div className="brand-mark">✚</div>
-          <div>
-            <p className="brand-subtitle">
-              Smarter lesion review with image and clinical context
-            </p>
-            <h1>{APP_NAME}</h1>
-          </div>
-        </div>
-      </header>
-
-      <section className="hero-panel">
+      <div className="app-header">
         <div>
-          <p className="eyebrow">Image + notes + triage summary</p>
-          <h2>A cleaner, more human way to review dermatology-style cases.</h2>
-          <p className="hero-copy">
-            Upload a lesion image, add a short clinical note, and get an
-            easy-to-read triage summary with confidence, supporting signals,
-            and recent case history.
+          <div className="eyebrow">Multimodal dermatology triage</div>
+          <h1>{APP_NAME}</h1>
+          <p className="subtle">
+            Upload an image and supporting notes to generate a three-level triage summary.
           </p>
         </div>
+      </div>
 
-        <div className="hero-stats">
-          <div className="mini-stat">
-            <span className="mini-stat-label">What you upload</span>
-            <strong>Image + case notes</strong>
-            <small>A lesion image with optional clinical context</small>
-          </div>
-          <div className="mini-stat">
-            <span className="mini-stat-label">What you get</span>
-            <strong>Clear triage summary</strong>
-            <small>Readable risk level, confidence, and class breakdown</small>
-          </div>
-          <div className="mini-stat">
-            <span className="mini-stat-label">Best for</span>
-            <strong>Fast case review</strong>
-            <small>Useful for demos, prototyping, and workflow storytelling</small>
-          </div>
-        </div>
-      </section>
-
-      <main className="dashboard-grid">
-        <section className="panel intake-panel">
+      <div className="layout-grid">
+        <section className="panel">
           <div className="panel-header">
             <div>
-              <p className="panel-kicker">Step 1</p>
-              <h3>Case Intake</h3>
+              <div className="eyebrow">Step 1</div>
+              <h2>Case Intake</h2>
             </div>
-            <button type="button" className="text-button" onClick={resetCase}>
+            <button type="button" className="ghost-button" onClick={resetCase}>
               Reset case
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="intake-form">
-            <label
-              className={`upload-zone ${dragActive ? "drag-active" : ""} ${
-                previewUrl ? "has-preview" : ""
-              }`}
-              onDragOver={(event) => {
-                event.preventDefault();
-                setDragActive(true);
-              }}
-              onDragLeave={() => setDragActive(false)}
+          <form onSubmit={handleSubmit}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={handleFileChange}
+            />
+
+            <div
+              className={`upload-card ${isDragging ? "is-dragging" : ""}`}
+              onClick={openFilePicker}
               onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  openFilePicker();
+                }
+              }}
             >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                hidden
-              />
-
               {previewUrl ? (
-                <div className="upload-preview">
-                  <img src={previewUrl} alt="Selected lesion preview" />
-                  <div className="upload-copy">
-                    <strong>{image?.name}</strong>
-                    <span>Click to replace or drag in a new image</span>
-                  </div>
-                </div>
+                <img src={previewUrl} alt="Selected lesion" className="upload-preview" />
               ) : (
-                <div className="upload-empty">
-                  <div className="upload-icon">⬆</div>
-                  <strong>Drop lesion image here</strong>
-                  <span>or click to browse from your device</span>
-                </div>
+                <div className="upload-placeholder">Select image</div>
               )}
-            </label>
 
-            <div className="template-bar">
-              <span>Quick note templates</span>
-              <div className="template-chips">
-                {NOTE_TEMPLATES.map((template, index) => (
+              <div className="upload-copy">
+                <strong>{selectedFile?.name ?? "No image selected"}</strong>
+                <span>
+                  {selectedFile
+                    ? "Click to replace or drag in a new image"
+                    : "Click to upload or drag and drop an image"}
+                </span>
+              </div>
+            </div>
+
+            <div className="template-row">
+              <span className="section-label">Quick note templates</span>
+              <div className="chip-row">
+                {NOTE_TEMPLATES.map((template: string, index: number) => (
                   <button
-                    key={index}
+                    key={`template-${index}`}
                     type="button"
                     className="chip"
-                    onClick={() => setNotes(template)}
+                    onClick={() => handleTemplateClick(template)}
                   >
                     Template {index + 1}
                   </button>
@@ -313,101 +332,133 @@ function App() {
               </div>
             </div>
 
-            <div className="notes-block">
-              <label htmlFor="notes">Clinical notes</label>
-              <textarea
-                id="notes"
-                placeholder="Enter age, lesion location, symptoms, recent changes, and relevant history..."
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                rows={7}
-              />
-            </div>
+            <label className="section-label" htmlFor="clinical-notes">
+              Clinical notes
+            </label>
+            <textarea
+              id="clinical-notes"
+              className="notes-box"
+              value={noteText}
+              onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setNoteText(event.target.value)}
+              placeholder="Enter age, lesion location, symptoms, recent changes, and relevant history..."
+              rows={8}
+            />
 
             <div className="action-row">
-              <button type="submit" className="primary-button" disabled={loading}>
-                {loading ? "Analyzing case..." : "Analyze Case"}
+              <button type="submit" className="primary-button" disabled={isSubmitting}>
+                {isSubmitting ? "Analyzing..." : "Analyze Case"}
               </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setNotes("")}
-              >
+              <button type="button" className="secondary-button" onClick={clearNotes}>
                 Clear notes
               </button>
             </div>
+
+            {error ? <div className="error-banner">{error}</div> : null}
+
+            <div className="hint-card">
+              <div className="eyebrow">Helpful inputs</div>
+              <h3>What makes a stronger request?</h3>
+              <ul>
+                {CLINICAL_HINTS.map((hint: string) => (
+                  <li key={hint}>{hint}</li>
+                ))}
+              </ul>
+            </div>
           </form>
-
-          {error ? <div className="alert error-alert">{error}</div> : null}
-
-          <div className="support-card">
-            <p className="panel-kicker">Helpful inputs</p>
-            <h4>What makes a stronger request?</h4>
-            <ul className="hint-list">
-              {CLINICAL_HINTS.map((hint) => (
-                <li key={hint}>{hint}</li>
-              ))}
-            </ul>
-          </div>
         </section>
 
-        <section className="panel result-panel">
+        <section className="panel">
           <div className="panel-header">
             <div>
-              <p className="panel-kicker">Step 2</p>
-              <h3>Triage Summary</h3>
+              <div className="eyebrow">Step 2</div>
+              <h2>Triage Summary</h2>
             </div>
           </div>
 
-          {result ? (
-            <div className="result-stack">
-              <div className={`result-hero ${riskMeta.toneClass}`}>
-                <div>
-                  <span className={`risk-badge ${riskMeta.badgeClass}`}>
-                    {result.predicted_class}
-                  </span>
-                  <h4>{riskMeta.title}</h4>
-                  <p>{riskMeta.summary}</p>
-                </div>
+          {!prediction ? (
+            <div className="empty-state">
+              <div className="empty-icon" />
+              <h3>No prediction yet</h3>
+              <p>
+                Submit an image and supporting notes to generate a triage summary,
+                confidence score, and probability breakdown.
+              </p>
 
-                <div className="confidence-ring">
-                  <span>{formatPercent(result.confidence)}</span>
-                  <small>confidence</small>
+              <div className="feature-grid">
+                <div className="feature-card">
+                  <h4>Readable output</h4>
+                  <p>Clear risk status with human-friendly explanation</p>
+                </div>
+                <div className="feature-card">
+                  <h4>Explainability</h4>
+                  <p>Probability bars instead of raw JSON blocks</p>
+                </div>
+                <div className="feature-card">
+                  <h4>Reusable history</h4>
+                  <p>Quick access to recent cases and saved notes</p>
                 </div>
               </div>
+            </div>
+          ) : (
+            <div className="summary-stack">
+              <div className={`summary-card ${riskToneClass(prediction.triage_level)}`}>
+                <div className="summary-header">
+                  <span className="risk-pill">{prediction.triage_level}</span>
+                  <div className="confidence-ring">
+                    <strong>{formatConfidence(prediction.confidence)}</strong>
+                    <span>confidence</span>
+                  </div>
+                </div>
 
-              <div className="metric-grid">
-                <div className="metric-card">
-                  <span>Latency</span>
-                  <strong>{result.duration_ms} ms</strong>
+                <h3>
+                  {prediction.triage_level === "High Risk"
+                    ? "Higher-priority triage signal"
+                    : prediction.triage_level === "Medium Risk"
+                    ? "Moderate-priority triage signal"
+                    : "Lower-priority triage signal"}
+                </h3>
+
+                <p>
+                  {prediction.triage_level === "High Risk"
+                    ? "The current inputs suggest a higher-risk pattern and should be escalated for prompt clinical review."
+                    : prediction.triage_level === "Medium Risk"
+                    ? "The current inputs suggest an intermediate-risk pattern that still warrants clinical evaluation."
+                    : "The current inputs suggest a lower-risk pattern, but this should still be interpreted in context by a clinician."}
+                </p>
+              </div>
+
+              <div className="stats-grid">
+                <div className="stat-card">
+                  <span className="stat-label">Request ID</span>
+                  <strong>{prediction.request_id ?? "N/A"}</strong>
                 </div>
-                <div className="metric-card">
-                  <span>Model version</span>
-                  <strong>{result.model_version}</strong>
+                <div className="stat-card">
+                  <span className="stat-label">Model device</span>
+                  <strong>{prediction.model_info?.device ?? "N/A"}</strong>
                 </div>
-                <div className="metric-card">
-                  <span>Request ID</span>
-                  <strong className="mono">{result.request_id.slice(0, 8)}</strong>
+                <div className="stat-card">
+                  <span className="stat-label">Max token length</span>
+                  <strong>{prediction.model_info?.max_len ?? "N/A"}</strong>
                 </div>
               </div>
 
               <div className="probability-card">
-                <div className="subsection-header">
+                <div className="probability-header">
                   <h4>Risk distribution</h4>
                   <span>Class probabilities</span>
                 </div>
 
                 <div className="probability-list">
-                  {sortedProbabilities.map(([label, value]) => (
-                    <div key={label} className="probability-row">
-                      <div className="probability-meta">
+                  {probabilityEntries.map(([label, value]: [string, number]) => (
+                    <div key={label} className="probability-item">
+                      <div className="probability-row">
                         <span>{label}</span>
-                        <span>{formatPercent(value)}</span>
+                        <strong>{formatPercent(value)}</strong>
                       </div>
-                      <div className="probability-track">
+                      <div className="progress-track">
                         <div
-                          className="probability-fill"
-                          style={{ width: `${Math.max(value * 100, 4)}%` }}
+                          className={`progress-fill ${riskToneClass(label)}`}
+                          style={{ width: `${Math.max(2, value * 100)}%` }}
                         />
                       </div>
                     </div>
@@ -415,181 +466,67 @@ function App() {
                 </div>
               </div>
 
-              <div className="two-column-card">
-                <div>
-                  <div className="subsection-header">
-                    <h4>Warnings</h4>
-                    <span>Model output notes</span>
-                  </div>
-
-                  <ul className="warning-list">
-                    {result.warnings.length > 0 ? (
-                      result.warnings.map((warning, index) => (
-                        <li key={index}>{warning}</li>
-                      ))
-                    ) : (
-                      <li>No warning flags returned for this case.</li>
-                    )}
-                  </ul>
-                </div>
-
-                <div>
-                  <div className="subsection-header">
-                    <h4>Assets</h4>
-                    <span>Traceable output</span>
-                  </div>
-
-                  <div className="asset-list">
-                    {result.image_url ? (
-                      <a
-                        href={result.image_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="asset-link"
-                      >
-                        Open uploaded image
-                      </a>
-                    ) : (
-                      <span className="muted">No image link returned</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="empty-state">
-              <div className="empty-icon">◎</div>
-              <h4>No prediction yet</h4>
-              <p>
-                Submit an image and supporting notes to generate a triage
-                summary, confidence score, and probability breakdown.
-              </p>
-
-              <div className="empty-feature-grid">
-                <div className="empty-feature">
-                  <strong>Readable output</strong>
-                  <span>Clear risk status with human-friendly explanation</span>
-                </div>
-                <div className="empty-feature">
-                  <strong>Explainability</strong>
-                  <span>Probability bars instead of raw JSON blocks</span>
-                </div>
-                <div className="empty-feature">
-                  <strong>Reusable history</strong>
-                  <span>Quick access to recent cases and saved notes</span>
-                </div>
+              <div className="notes-card">
+                <h4>Model output notes</h4>
+                <p>
+                  {prediction.text_used
+                    ? prediction.text_used
+                    : "No normalized note text returned by the backend."}
+                </p>
               </div>
             </div>
           )}
         </section>
+      </div>
 
-        <section className="panel workflow-panel">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Step 3</p>
-              <h3>How it works</h3>
-            </div>
+      <section className="panel history-panel">
+        <div className="panel-header">
+          <div>
+            <div className="eyebrow">Recent cases</div>
+            <h2>Reusable history</h2>
           </div>
+          <button
+            type="button"
+            className="ghost-button"
+            onClick={() => {
+              void refreshHistory();
+            }}
+          >
+            Refresh
+          </button>
+        </div>
 
-          <div className="workflow-list">
-            <div className="workflow-item">
-              <span>01</span>
-              <div>
-                <strong>Upload a case image</strong>
-                <p>Drag and drop an image or browse from your device.</p>
-              </div>
-            </div>
-            <div className="workflow-item">
-              <span>02</span>
-              <div>
-                <strong>Add short notes</strong>
-                <p>Include location, symptoms, history, or recent change.</p>
-              </div>
-            </div>
-            <div className="workflow-item">
-              <span>03</span>
-              <div>
-                <strong>Review the triage summary</strong>
-                <p>See the risk class, confidence, and supporting breakdown.</p>
-              </div>
-            </div>
+        {isLoadingHistory ? (
+          <p className="subtle">Loading history...</p>
+        ) : history.length === 0 ? (
+          <p className="subtle">No saved predictions yet.</p>
+        ) : (
+          <div className="history-list">
+            {history.map((item: PredictionHistoryItem) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`history-item ${selectedHistoryItem?.id === item.id ? "is-active" : ""}`}
+                onClick={() => loadHistoryItem(item)}
+              >
+                <div className="history-top">
+                  <strong>{item.image_name}</strong>
+                  <span className={`risk-pill small ${riskToneClass(item.triage_level)}`}>
+                    {item.triage_level}
+                  </span>
+                </div>
+
+                <div className="history-meta">
+                  <span>{new Date(item.created_at).toLocaleString()}</span>
+                  <span>{formatConfidence(item.confidence)}</span>
+                </div>
+
+                <p className="history-note">{item.note_text || "No note text saved."}</p>
+              </button>
+            ))}
           </div>
-        </section>
-
-        <section className="panel history-panel">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Recent activity</p>
-              <h3>Prediction History</h3>
-            </div>
-            <button
-              type="button"
-              className="text-button"
-              onClick={() => void loadHistory()}
-            >
-              Refresh
-            </button>
-          </div>
-
-          {history.length > 0 ? (
-            <div className="history-grid">
-              {history.map((item) => (
-                <article key={item.request_id} className="history-card">
-                  <div className="history-top">
-                    <span
-                      className={`risk-badge ${
-                        getRiskMeta(item.predicted_class).badgeClass
-                      }`}
-                    >
-                      {item.predicted_class}
-                    </span>
-                    <span className="history-time">
-                      {formatTimestamp(item.timestamp)}
-                    </span>
-                  </div>
-
-                  <p className="history-confidence">
-                    Confidence: {formatPercent(item.confidence)}
-                  </p>
-
-                  <p className="history-notes">
-                    {item.notes?.trim()
-                      ? item.notes
-                      : "No clinical notes saved for this case."}
-                  </p>
-
-                  <div className="history-actions">
-                    <button
-                      type="button"
-                      className="ghost-chip"
-                      onClick={() => reuseHistoryItem(item)}
-                    >
-                      Reuse notes
-                    </button>
-
-                    {item.image_url ? (
-                      <a
-                        href={item.image_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="ghost-chip link-chip"
-                      >
-                        Image
-                      </a>
-                    ) : null}
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-history">
-              <p>No history yet. Run your first case to populate the activity feed.</p>
-            </div>
-          )}
-        </section>
-      </main>
+        )}
+      </section>
     </div>
   );
 }
-
-export default App;

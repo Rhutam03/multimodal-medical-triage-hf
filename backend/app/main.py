@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routes import router
 
 app = FastAPI(
-    title="Multimodal Medical Triage API",
+    title="SkinSight Triage API",
     version="1.0.0",
 )
 
@@ -38,6 +38,10 @@ def root():
             "/predict",
             "/api/analyze",
             "/analyze",
+        ],
+        "history_routes": [
+            "/api/predictions",
+            "/predictions",
         ],
     }
 

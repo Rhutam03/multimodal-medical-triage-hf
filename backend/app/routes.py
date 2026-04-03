@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import json
 import sys
+import uuid
+from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
+from typing import Any
 
 CURRENT_FILE = Path(__file__).resolve()
 BACKEND_DIR = CURRENT_FILE.parents[1]
@@ -15,6 +19,33 @@ from PIL import Image
 from src.core.inference import predict_from_inputs
 
 router = APIRouter()
+
+HISTORY_PATH = BACKEND_DIR / "artifacts" / "prediction_history.json"
+HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+MAX_HISTORY_ITEMS = 25
+
+
+def load_history() -> list[dict[str, Any]]:
+    if not HISTORY_PATH.exists():
+        return []
+
+    try:
+        with open(HISTORY_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def save_history(items: list[dict[str, Any]]) -> None:
+    with open(HISTORY_PATH, "w", encoding="utf-8") as f:
+        json.dump(items[:MAX_HISTORY_ITEMS], f, ensure_ascii=False, indent=2)
+
+
+@router.get("/api/predictions")
+@router.get("/predictions")
+def get_predictions():
+    return load_history()
 
 
 @router.post("/api/predict")
@@ -31,7 +62,7 @@ async def predict_route(
     site: str = Form(""),
 ):
     """
-    Supports both old and new frontend payloads:
+    Backward-compatible with multiple frontend payload styles:
     - file OR image
     - note_text OR notes
     - /api/predict OR /predict OR /api/analyze OR /analyze
@@ -58,6 +89,24 @@ async def predict_route(
             sex=sex,
             site=site,
         )
+
+        history = load_history()
+
+        history_item = {
+            "id": str(uuid.uuid4()),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "image_name": upload.filename or "uploaded-image",
+            "note_text": final_note_text,
+            "triage_level": result.get("triage_level"),
+            "confidence": result.get("confidence"),
+            "probabilities": result.get("probabilities", {}),
+            "predicted_index": result.get("predicted_index"),
+        }
+
+        history.insert(0, history_item)
+        save_history(history)
+
+        result["request_id"] = history_item["id"]
         return result
 
     except HTTPException:
