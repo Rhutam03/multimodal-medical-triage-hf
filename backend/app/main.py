@@ -31,9 +31,14 @@ app.include_router(router)
 def root():
     return {
         "message": "Backend is running",
-        "docs": "/docs",
         "health": "/health",
-        "predict": "/api/predict",
+        "docs": "/docs",
+        "predict_routes": [
+            "/api/predict",
+            "/predict",
+            "/api/analyze",
+            "/analyze",
+        ],
     }
 
 

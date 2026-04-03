@@ -18,25 +18,49 @@ router = APIRouter()
 
 
 @router.post("/api/predict")
-async def api_predict(
-    file: UploadFile = File(...),
+@router.post("/predict")
+@router.post("/api/analyze")
+@router.post("/analyze")
+async def predict_route(
+    file: UploadFile | None = File(None),
+    image: UploadFile | None = File(None),
     note_text: str = Form(""),
+    notes: str = Form(""),
     age: str = Form(""),
     sex: str = Form(""),
     site: str = Form(""),
 ):
+    """
+    Supports both old and new frontend payloads:
+    - file OR image
+    - note_text OR notes
+    - /api/predict OR /predict OR /api/analyze OR /analyze
+    """
     try:
-        contents = await file.read()
-        image = Image.open(BytesIO(contents)).convert("RGB")
+        upload = file or image
+        if upload is None:
+            raise HTTPException(
+                status_code=400,
+                detail="No image file provided. Expected form field 'file' or 'image'.",
+            )
+
+        contents = await upload.read()
+        if not contents:
+            raise HTTPException(status_code=400, detail="Uploaded image is empty.")
+
+        pil_image = Image.open(BytesIO(contents)).convert("RGB")
+        final_note_text = note_text or notes or ""
 
         result = predict_from_inputs(
-            image=image,
-            note_text=note_text,
+            image=pil_image,
+            note_text=final_note_text,
             age=age,
             sex=sex,
             site=site,
         )
         return result
 
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
