@@ -1,25 +1,42 @@
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from __future__ import annotations
 
-from app.predictor import run_prediction
+import sys
+from io import BytesIO
+from pathlib import Path
+
+CURRENT_FILE = Path(__file__).resolve()
+BACKEND_DIR = CURRENT_FILE.parents[1]
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from PIL import Image
+
+from src.core.inference import predict_from_inputs
 
 router = APIRouter()
 
 
-@router.get("/healthz")
-def healthz():
-    return {"status": "ok", "environment": "dev", "model_version": "v1"}
-
-
-@router.post("/predict")
-async def predict(
-    image: UploadFile = File(...),
-    text: str = Form("")
+@router.post("/api/predict")
+async def api_predict(
+    file: UploadFile = File(...),
+    note_text: str = Form(""),
+    age: str = Form(""),
+    sex: str = Form(""),
+    site: str = Form(""),
 ):
-    if image.content_type not in {"image/jpeg", "image/png", "image/jpg", "image/webp"}:
-        raise HTTPException(status_code=400, detail="Unsupported image type")
+    try:
+        contents = await file.read()
+        image = Image.open(BytesIO(contents)).convert("RGB")
 
-    image_bytes = await image.read()
-    if not image_bytes:
-        raise HTTPException(status_code=400, detail="Empty image file")
+        result = predict_from_inputs(
+            image=image,
+            note_text=note_text,
+            age=age,
+            sex=sex,
+            site=site,
+        )
+        return result
 
-    return run_prediction(image_bytes, image.content_type, text)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))

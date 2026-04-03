@@ -1,62 +1,40 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
-export type PredictionResponse = {
-  request_id: string;
-  model_version: string;
-  predicted_class: string;
-  class_id: number;
-  confidence: number;
-  probabilities: Record<string, number>;
-  warnings: string[];
-  image_url?: string;
-  duration_ms: number;
-  saved: boolean;
+export type AnalyzeCaseInput = {
+  file: File;
+  noteText?: string;
+  age?: string;
+  sex?: string;
+  site?: string;
 };
 
-export type PredictionHistoryItem = {
-  request_id: string;
-  timestamp: string;
-  predicted_class: string;
-  class_id: number;
-  confidence: number;
-  probabilities: Record<string, number>;
-  notes: string;
-  image_url?: string;
-  model_version: string;
-};
+export async function analyzeCase(input: AnalyzeCaseInput) {
+  const formData = new FormData();
+  formData.append("file", input.file);
+  formData.append("note_text", input.noteText ?? "");
+  formData.append("age", input.age ?? "");
+  formData.append("sex", input.sex ?? "");
+  formData.append("site", input.site ?? "");
 
-export type PredictionListResponse = {
-  items: PredictionHistoryItem[];
-};
-
-export async function predict(
-  image: File,
-  text: string
-): Promise<PredictionResponse> {
-  const form = new FormData();
-  form.append("image", image);
-  form.append("text", text);
-
-  const response = await fetch(`${API_BASE_URL}/predict`, {
+  const response = await fetch(`${API_BASE_URL}/api/predict`, {
     method: "POST",
-    body: form,
+    body: formData,
   });
 
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(body || "Prediction request failed");
+  const rawText = await response.text();
+
+  let data: any = null;
+  try {
+    data = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    data = null;
   }
 
-  return response.json();
-}
-
-export async function getPredictions(): Promise<PredictionListResponse> {
-  const response = await fetch(`${API_BASE_URL}/predictions`);
-
   if (!response.ok) {
-    const body = await response.text();
-    throw new Error(body || "Failed to load prediction history");
+    throw new Error(
+      data?.detail || rawText || `Request failed with status ${response.status}`
+    );
   }
 
-  return response.json();
+  return data;
 }
