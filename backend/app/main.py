@@ -7,7 +7,7 @@ from app.routes import router
 
 app = FastAPI(
     title="SkinSight Triage API",
-    version="1.0.0",
+    version="1.0.1-runtime-fix",
 )
 
 ALLOWED_ORIGINS = [
@@ -31,21 +31,15 @@ app.include_router(router)
 def root():
     return {
         "message": "Backend is running",
+        "version": "1.0.1-runtime-fix",
         "health": "/health",
         "docs": "/docs",
-        "predict_routes": [
-            "/api/predict",
-            "/predict",
-            "/api/analyze",
-            "/analyze",
-        ],
-        "history_routes": [
-            "/api/predictions",
-            "/predictions",
-        ],
     }
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "version": "1.0.1-runtime-fix",
+    }

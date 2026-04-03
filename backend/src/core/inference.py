@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 CURRENT_FILE = Path(__file__).resolve()
-BACKEND_DIR = CURRENT_FILE.parents[2]   # .../backend or /app in container
+BACKEND_DIR = CURRENT_FILE.parents[2]
 REPO_ROOT = BACKEND_DIR.parent
 
 if str(BACKEND_DIR) not in sys.path:
@@ -61,11 +61,6 @@ LABEL_MAP = {
     2: "High Risk",
 }
 
-DEFAULT_CANONICAL_TEXT = (
-    "age unknown. sex unknown. site unknown. "
-    "symptoms unknown. change unknown. history unknown."
-)
-
 _MODEL: MultimodalTriageModel | None = None
 _VOCAB: dict[str, int] | None = None
 _MAX_LEN: int = 48
@@ -84,14 +79,11 @@ def _find_existing_file(candidates: list[Path]) -> Path | None:
 def _is_valid_checkpoint(path: Path) -> bool:
     if not path.exists() or not path.is_file():
         return False
-
     if path.stat().st_size == 0:
         return False
-
     head = path.read_bytes()[:200]
     if head.startswith(b"version https://git-lfs.github.com/spec/v1"):
         return False
-
     return True
 
 
@@ -129,7 +121,7 @@ def _load_or_rebuild_vocab(
     vocab_candidates: list[Path],
     labels_csv_candidates: list[Path],
 ) -> tuple[dict[str, int], Path | None, Path | None]:
-    # First choice: load existing vocab.json. If this works, labels.csv is NOT required.
+    # First: try loading existing vocab.json. If this works, labels.csv is not needed.
     for vocab_path in vocab_candidates:
         if vocab_path.exists():
             try:
@@ -140,7 +132,7 @@ def _load_or_rebuild_vocab(
             except Exception as exc:
                 print(f"Failed to load vocab from {vocab_path}: {exc}")
 
-    # Fallback: rebuild vocab from labels.csv if vocab.json is unavailable or invalid.
+    # Fallback: rebuild from labels.csv only if vocab is unavailable.
     labels_csv_path = _find_existing_file(labels_csv_candidates)
     if labels_csv_path is None:
         raise FileNotFoundError(
@@ -163,11 +155,9 @@ def _load_or_rebuild_vocab(
 def _clean_field(value: str | int | None, unknown: str = "unknown") -> str:
     if value is None:
         return unknown
-
     value = str(value).strip()
     if not value:
         return unknown
-
     cleaned = preprocess_text(value)
     return cleaned if cleaned else unknown
 
