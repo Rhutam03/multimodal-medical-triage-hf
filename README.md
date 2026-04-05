@@ -1,18 +1,17 @@
 # Multimodal Medical Triage
 
-A full stack multimodal machine learning project for lesion image and clinical note triage prediction.
+A multimodal machine learning project for lesion image and clinical note triage prediction.
 
 This project combines computer vision, text processing, model evaluation, cloud deployment, and modern frontend development into one end to end system. The application accepts a lesion image, a short clinical note, or both together, and predicts one of three triage categories: **Low Risk**, **Medium Risk**, or **High Risk**.
 
 The goal of this project was not just to train a model, but to build a complete and deployment ready pipeline that reflects the kind of work done in real machine learning and software engineering environments.
 
----
 
 ## Project Overview
 
 Healthcare data often comes from more than one source. In many real settings, decisions are made using both visual information and written clinical context rather than either one alone. This project explores that idea through a multimodal triage system that brings image and text signals together in a single prediction workflow.
 
-From an internship and portfolio perspective, this project highlights several skills at once:
+ Skills used in this project:
 
 - Multimodal machine learning
 - PyTorch model development
@@ -22,8 +21,6 @@ From an internship and portfolio perspective, this project highlights several sk
 - React and TypeScript frontend development
 - AWS deployment
 - CI/CD with GitHub Actions and AWS OIDC
-
----
 
 ## What the System Does
 
@@ -40,7 +37,6 @@ From an internship and portfolio perspective, this project highlights several sk
 - Hosts the frontend with Amazon S3 and CloudFront
 - Uses GitHub Actions for deployment automation
 
----
 
 ## Tech Stack
 
@@ -66,7 +62,7 @@ From an internship and portfolio perspective, this project highlights several sk
 - GitHub Actions
 - AWS OIDC
 
----
+
 
 ## Architecture
 
