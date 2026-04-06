@@ -40,7 +40,7 @@ Healthcare data often comes from more than one source. In many real settings, de
 
 ## Tech Stack
 
-### Machine Learning and Backend
+### Backend
 - Python
 - PyTorch
 - FastAPI
