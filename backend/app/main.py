@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routes import router
 
 app = FastAPI(
-    title="SkinSight Triage API",
+    title="Multimodal Medical Triage API",
     version="1.0.1-runtime-fix",
 )
 
