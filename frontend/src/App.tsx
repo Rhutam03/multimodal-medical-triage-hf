@@ -70,7 +70,7 @@ function getHeadline(risk: string | undefined): string {
 }
 
 function getSummaryCopy(risk: string | undefined): string {
-  if (!risk) return "Submit an image and supporting notes to generate a triage summary.";
+  if (!risk) return "Submit an image and supporting notes to generate a triage results.";
 
   if (risk === "High Risk") {
     return "The current inputs suggest a higher-risk pattern and this case should be reviewed promptly by a clinician.";
@@ -87,7 +87,7 @@ function getPlainLanguageMeaning(risk: string | undefined): string {
   if (!risk) return "";
 
   if (risk === "High Risk") {
-    return "This result means the case looks more concerning than average and should be prioritized for follow-up.";
+    return "This result means the case looks more concerning than average and should be prioritized for follow up but it is not a formal diagnosis.";
   }
 
   if (risk === "Medium Risk") {
