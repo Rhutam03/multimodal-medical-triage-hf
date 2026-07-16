@@ -20,7 +20,7 @@ from src.core.inference import predict_from_inputs
 
 router = APIRouter()
 
-HISTORY_PATH = BACKEND_DIR / "artifacts" / "prediction_history.json"
+HISTORY_PATH = BACKEND_DIR / "models" / "prediction_history.json"
 HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
 MAX_HISTORY_ITEMS = 25
 

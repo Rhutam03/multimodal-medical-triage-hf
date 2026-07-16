@@ -22,7 +22,7 @@ DEFAULT_TEXT = (
 )
 
 
-class RealMultimodalDataset(Dataset):
+class MultimodalDataset(Dataset):
     def __init__(self, labels_csv, image_dir, transform, vocab, max_len=48):
         self.df = pd.read_csv(labels_csv).copy()
         self.image_dir = image_dir

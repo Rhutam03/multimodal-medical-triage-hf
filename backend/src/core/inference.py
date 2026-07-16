@@ -36,18 +36,18 @@ else:
 TEMPERATURE = 1.5
 
 WEIGHTS_CANDIDATES = [
-    BACKEND_DIR / "artifacts" / "model_weights.pth",
+    BACKEND_DIR / "models" / "model_weights.pth",
     BACKEND_DIR / "weights" / "model_weights.pth",
-    REPO_ROOT / "backend" / "artifacts" / "model_weights.pth",
-    REPO_ROOT / "artifacts" / "model_weights.pth",
+    REPO_ROOT / "backend" / "models" / "model_weights.pth",
+    REPO_ROOT / "models" / "model_weights.pth",
     REPO_ROOT / "weights" / "model_weights.pth",
 ]
 
 VOCAB_CANDIDATES = [
-    BACKEND_DIR / "artifacts" / "vocab.json",
+    BACKEND_DIR / "models" / "vocab.json",
     BACKEND_DIR / "weights" / "vocab.json",
-    REPO_ROOT / "backend" / "artifacts" / "vocab.json",
-    REPO_ROOT / "artifacts" / "vocab.json",
+    REPO_ROOT / "backend" / "models" / "vocab.json",
+    REPO_ROOT / "models" / "vocab.json",
     REPO_ROOT / "weights" / "vocab.json",
 ]
 

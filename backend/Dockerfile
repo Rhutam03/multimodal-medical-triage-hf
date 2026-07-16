@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 COPY src ./src
-COPY artifacts ./artifacts
+COPY models ./models
 
 EXPOSE 8000
 

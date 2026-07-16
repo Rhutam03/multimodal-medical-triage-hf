@@ -31,20 +31,20 @@ jobs:
           git lfs install
           git lfs pull
 
-      - name: Verify backend artifacts
+      - name: Verify backend model files
         run: |
-          echo "Listing backend/artifacts"
-          ls -lh backend/artifacts || true
+          echo "Listing backend/models"
+          ls -lh backend/models || true
 
-          test -f backend/artifacts/model_weights.pth
-          test -f backend/artifacts/vocab.json
+          test -f backend/models/model_weights.pth
+          test -f backend/models/vocab.json
 
-          if head -c 200 backend/artifacts/model_weights.pth | grep -q "version https://git-lfs.github.com/spec/v1"; then
-            echo "ERROR: backend/artifacts/model_weights.pth is still a Git LFS pointer, not the real model."
+          if head -c 200 backend/models/model_weights.pth | grep -q "version https://git-lfs.github.com/spec/v1"; then
+            echo "ERROR: backend/models/model_weights.pth is still a Git LFS pointer, not the real model."
             exit 1
           fi
 
-          SIZE=$(wc -c < backend/artifacts/model_weights.pth)
+          SIZE=$(wc -c < backend/models/model_weights.pth)
           echo "Model size: ${SIZE} bytes"
 
           if [ "$SIZE" -lt 1000000 ]; then

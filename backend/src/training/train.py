@@ -30,7 +30,7 @@ from torch.utils.data import DataLoader, Subset
 from src.fusion_model import MultimodalTriageModel
 from src.preprocess.image_preprocess import image_transform
 from src.preprocess.text_preprocess import build_vocab, save_vocab
-from src.training.real_dataset import RealMultimodalDataset
+from src.training.dataset import MultimodalDataset
 
 if torch.backends.mps.is_available():
     DEVICE = torch.device("mps")
@@ -63,15 +63,15 @@ for candidate in DATA_CANDIDATES:
 if DATA_DIR is None:
     raise FileNotFoundError("Could not find data directory.")
 
-ARTIFACTS_DIR = BACKEND_DIR / "artifacts"
-ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+MODELS_DIR = BACKEND_DIR / "models"
+MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
 LABELS_CSV = DATA_DIR / "labels.csv"
 IMAGE_DIR = DATA_DIR / "images"
-WEIGHTS_PATH = ARTIFACTS_DIR / "model_weights.pth"
-VOCAB_PATH = ARTIFACTS_DIR / "vocab.json"
-METRICS_PATH = ARTIFACTS_DIR / "best_metrics.json"
-SUBSET_LABELS_PATH = ARTIFACTS_DIR / "labels_subset.csv"
+WEIGHTS_PATH = MODELS_DIR / "model_weights.pth"
+VOCAB_PATH = MODELS_DIR / "vocab.json"
+METRICS_PATH = MODELS_DIR / "best_metrics.json"
+SUBSET_LABELS_PATH = MODELS_DIR / "labels_subset.csv"
 
 LABEL_MAP = {
     0: "Low Risk",
@@ -180,7 +180,7 @@ def train():
     print(f"Repo root: {REPO_ROOT}")
     print(f"Labels CSV: {LABELS_CSV}")
     print(f"Image dir: {IMAGE_DIR}")
-    print(f"Artifacts dir: {ARTIFACTS_DIR}")
+    print(f"Models dir: {MODELS_DIR}")
     print(
         f"Config | batch_size={BATCH_SIZE} epochs={NUM_EPOCHS} "
         f"max_len={MAX_LEN} subset={SUBSET_SIZE} log_every={LOG_EVERY}"
@@ -212,7 +212,7 @@ def train():
     print(f"Vocab size: {len(vocab)}")
     sys.stdout.flush()
 
-    dataset = RealMultimodalDataset(
+    dataset = MultimodalDataset(
         labels_csv=str(working_labels_csv),
         image_dir=str(IMAGE_DIR),
         transform=image_transform,

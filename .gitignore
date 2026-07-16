@@ -8,7 +8,7 @@ venv/
 # Data
 data/
 
-# Model weights (local training artifacts)
+# Local model weights from training runs
 weights/*.pth
 weights/*.pt
 weights/*.bin
