@@ -13,3 +13,7 @@ weights/*.pth
 weights/*.pt
 weights/*.bin
 .gradio/
+
+# Frontend
+node_modules/
+dist/
