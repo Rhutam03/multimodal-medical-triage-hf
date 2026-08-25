@@ -113,3 +113,37 @@ The API returns:
 
 Recent predictions are stored in a local JSON file and made available to the frontend for display in the history panel.
 
+
+## Results
+
+The shipped model was evaluated on 5,067 held out cases across the three triage levels. The
+figures below are the run recorded in `backend/models/best_metrics.json`, which is the checkpoint
+the deployed API serves.
+
+| Metric | Score |
+| --- | --- |
+| Accuracy | 79.79% |
+| Macro F1 | 76.57% |
+| Balanced accuracy | 76.80% |
+
+Per class:
+
+| Class | Precision | Recall | F1 | Support |
+| --- | --- | --- | --- | --- |
+| Low Risk | 87.02% | 88.00% | 87.51% | 2,576 |
+| Medium Risk | 66.23% | 70.82% | 68.45% | 922 |
+| High Risk | 76.08% | 71.57% | 73.76% | 1,569 |
+
+Medium Risk is the hardest class, which is what you would expect: it sits between the other two
+and shares symptoms with both. The confusion matrix in the metrics file shows most of its errors
+land in the adjacent classes rather than jumping from Low to High.
+
+Predictions below the 0.70 confidence threshold are not forced into a class. They are flagged for
+manual review instead, because in a triage setting a wrong confident answer costs more than a
+deferred one.
+
+## Tech Stack
+
+PyTorch for the fusion model, with a ResNet-18 image branch and a clinical text branch. FastAPI
+serves inference, the frontend is React with TypeScript, and both are Dockerized and deployed to
+AWS through GitHub Actions: the backend image to ECR and App Runner, the frontend build to S3.
